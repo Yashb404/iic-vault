@@ -16,10 +16,26 @@ function registerIpcHandlers(dbManager, mainWindow) {
 
     const isValid = await dbManager.verifyPassword(username, password);
     if (isValid) {
-      currentUser = user;
-      console.log(`User logged in: ${currentUser.username}, Role: ${currentUser.role}`);
-      await dbManager.logAction(currentUser.id, 'USER_LOGIN');
-      return currentUser;
+      // Retrieve JWT from API server to use for authenticated requests
+      try {
+        const apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
+        const res = await fetch(`${apiBase}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        if (!res.ok) throw new Error(`Login to API failed (${res.status})`);
+        const { token, user: serverUser } = await res.json();
+
+        currentUser = { ...user, token, role: serverUser?.role || user.role, id: serverUser?.id || user.id };
+        console.log(`User logged in: ${currentUser.username}, Role: ${currentUser.role}`);
+        await dbManager.logAction(currentUser.id, 'USER_LOGIN');
+        return { id: currentUser.id, username: currentUser.username, role: currentUser.role, token: currentUser.token };
+      } catch (err) {
+        console.error('Failed to obtain JWT from API server:', err);
+        await dbManager.logAction('system', 'LOGIN_FAILED', `JWT fetch failed for user: ${username}`);
+        return null;
+      }
     }
 
     await dbManager.logAction('system', 'LOGIN_FAILED', `Attempt for user: ${username}`);
@@ -57,7 +73,10 @@ function registerIpcHandlers(dbManager, mainWindow) {
       const apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
       const signedRes = await fetch(`${apiBase}/files/upload-url`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser.token}`,
+        },
         body: JSON.stringify({ fileName: encryptedName }),
       });
       if (!signedRes.ok) throw new Error(`Failed to get signed URL (${signedRes.status})`);
@@ -80,8 +99,23 @@ function registerIpcHandlers(dbManager, mainWindow) {
       });
       await dbManager.logAction(currentUser.id, 'FILE_ENCRYPT', `Uploaded: ${originalName} -> ${remotePath}`);
 
-      // 6) Optionally notify server to persist central metadata
-      // await fetch(`${apiBase}/files/metadata`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ... }) })
+      // 6) Persist central metadata on API server
+      const metaRes = await fetch(`${apiBase}/files/metadata`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser.token}`,
+        },
+        body: JSON.stringify({
+          id: fileId,
+          originalName,
+          encryptedName,
+          storagePath: remotePath,
+          version: 1,
+          lastModifiedUTC: new Date().toISOString(),
+        }),
+      });
+      if (!metaRes.ok) throw new Error(`Metadata persist failed (${metaRes.status})`);
 
       try { await fsp.unlink(tempEncryptedPath); } catch (_) {}
       return { success: true, files: await dbManager.getFiles() };
