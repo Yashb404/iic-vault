@@ -2,6 +2,33 @@
 
 A cross-platform desktop application providing end-to-end encrypted file storage with multi-device synchronization capabilities. Built with Electron and Node.js, this application implements a zero-knowledge architecture where the server cannot access user data.
 
+
+# ⚠️ Deployment Note for Judges
+
+### This project is a cross-platform desktop application built with Electron.
+### By design, the client application is not deployed on a server — it runs locally on user machines (Windows, macOS, Linux).
+
+For full functionality, the project also requires a backend server that handles authentication, metadata, and file synchronization. During the hackathon we implemented this local server in Node.js/Express, but we did not deploy it to a public cloud due to time constraints.
+
+👉 To make the project fully operational, the following deployment steps are needed:
+
+Server Deployment
+`
+Host the Node.js/Express API server on a cloud provider (e.g. Render, Vercel, AWS, Heroku).
+Connect it to a managed PostgreSQL database (we used NeonDB in development).
+Configure environment variables (DATABASE_URL, JWT_SECRET, S3 credentials).
+Enable HTTPS for secure communication.
+Storage Setup
+Provision an S3-compatible bucket (Supabase Storage or AWS S3).
+Apply bucket policies so only signed URLs can be used for upload/download.
+Client Configuration
+In the Electron app, update .env → SECURE_VAULT_API_BASE to point to the deployed server’s URL.
+Distribute the packaged Electron app to users (Windows/macOS/Linux).
+`
+### Until the server is deployed, the desktop client still demonstrates some features locally
+
+This is sufficient for hackathon judging, but the above steps are what’s needed to take the prototype into a production-ready system.
+
 ## Architecture Overview
 
 The application follows a client-server architecture with the following components:
@@ -87,7 +114,7 @@ AWS_S3_BUCKET=your-bucket-name
 ```bash
 # Navigate to server directory and start
 cd ../Server
-npm start
+npm run dev
 ```
 
 2. Start the Electron application:
