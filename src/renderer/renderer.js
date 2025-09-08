@@ -1,6 +1,5 @@
 import './styles/main.css';
 
-console.log('👋 This message is being logged by "renderer.js", included via webpack');
 
 
 // DOM element references
@@ -169,4 +168,96 @@ document.addEventListener('click', (e) => {
 });
 
 // Remove legacy add file button logic (handled by modal now)
+
+const $ = (sel) => document.querySelector(sel);
+
+// Show/hide login vs app
+function showApp(visible) {
+  const loginView = $('#login-view');
+  const main = $('#main-content');
+
+  if (visible) {
+    document.body.classList.remove('auth');
+    if (loginView) loginView.style.display = 'none';
+    if (main) main.style.display = 'block';
+  } else {
+    document.body.classList.add('auth');
+    if (loginView) loginView.style.display = 'block';
+    if (main) main.style.display = 'none';
+  }
+}
+
+// Login flow
+const loginBtn = $('#login-button');
+if (loginBtn) {
+  loginBtn.addEventListener('click', async () => {
+    const btn = loginBtn;
+    const username = ($('#username')?.value || '').trim();
+    const password = ($('#password')?.value || '').trim();
+    const errorEl = $('#login-error');
+    if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+    if (!username || !password) {
+      if (errorEl) { errorEl.style.display = 'block'; errorEl.textContent = 'Enter username and password.'; }
+      return;
+    }
+    btn.classList.add('loading');
+    try {
+      const result = await window.ipcRenderer.invoke('user:login', { username, password });
+      if (!result || !result.token) throw new Error('Invalid credentials or server unreachable.');
+      showApp(true);
+      await loadFiles();
+    } catch (e) {
+      if (errorEl) { errorEl.style.display = 'block'; errorEl.textContent = e.message || 'Login failed.'; }
+    } finally {
+      btn.classList.remove('loading');
+    }
+  });
+}
+
+// Populate files table using files:get
+async function loadFiles() {
+  try {
+    const files = await window.ipcRenderer.invoke('files:get');
+    const tbody = document.querySelector('.file-table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (files || []).forEach((f) => {
+      const tr = document.createElement('tr');
+      const lastModified = f.lastModifiedUTC ? new Date(f.lastModifiedUTC).toISOString().slice(0, 10) : '';
+      tr.innerHTML = `
+        <td>${f.originalName || f.name || ''}</td>
+        <td>${lastModified}</td>
+        <td>${f.size || ''}</td>
+        <td>Synced</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error('loadFiles failed:', e);
+  }
+}
+
+// Wire Add File + button to invoke file:add; prompt for password
+if (addFilePlus) {
+  addFilePlus.addEventListener('click', async () => {
+    try {
+      const password = window.prompt('Enter your vault password to encrypt & upload:');
+      if (!password) return;
+      const res = await window.ipcRenderer.invoke('file:add', { password });
+      if (!res?.success) {
+        alert(res?.message || 'Upload failed.');
+        return;
+      }
+      await loadFiles();
+      // Hide modal if your modal is open
+      if (addFileModal) addFileModal.style.display = 'none';
+    } catch (e) {
+      console.error('file:add failed:', e);
+      alert(e.message || 'Upload failed.');
+    }
+  });
+}
+
+// On load, default to login screen
+showApp(false);
 
