@@ -22,6 +22,19 @@ function showView(viewId) {
   });
 }
 
+// Enable Sign in button state for new auth screen
+const authUser = document.getElementById('auth-username');
+const authPass = document.getElementById('auth-password');
+const authSubmit = document.getElementById('auth-submit');
+function updateAuthButtonState() {
+  if (!authSubmit) return;
+  const ok = (authUser && authUser.value.trim()) && (authPass && authPass.value.trim());
+  if (ok) authSubmit.classList.add('enabled'); else authSubmit.classList.remove('enabled');
+  authSubmit.disabled = !ok;
+}
+if (authUser) authUser.addEventListener('input', updateAuthButtonState);
+if (authPass) authPass.addEventListener('input', updateAuthButtonState);
+
 if (sidebarItems && sidebarItems.length) {
   sidebarItems.forEach((item) => {
     item.addEventListener('click', () => {

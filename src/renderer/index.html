@@ -6,6 +6,28 @@
 
   </head>
   <body>
+    <!-- Auth screen (hidden by default) -->
+    <section id="login-screen" style="display: none;">
+      <div class="auth-hero"></div>
+      <div class="auth-wrap">
+        <div class="auth-card">
+          <div class="auth-brand">Secure Data Vault</div>
+          <form id="auth-form" novalidate>
+            <label class="auth-label" for="auth-username">Email or username</label>
+            <input id="auth-username" class="auth-input" type="text" placeholder="you@company.com" />
+
+            <label class="auth-label" for="auth-password">Password</label>
+            <input id="auth-password" class="auth-input" type="password" placeholder="••••••••" />
+
+            <button id="auth-submit" class="auth-submit" type="submit" disabled>Sign in</button>
+          </form>
+          <div class="auth-links">
+            <a href="#" class="auth-link">Create account</a>
+            <a href="#" class="auth-link">Forgot your password?</a>
+          </div>
+        </div>
+      </div>
+    </section>
     <!-- Login View (shown first; app hidden until login succeeds) -->
     <section id="login-view">
       <form id="login-form" onsubmit="return false;">
