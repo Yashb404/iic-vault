@@ -51,6 +51,10 @@ yargs(hideBin(process.argv))
   , async (argv) => {
     await withDb(argv, async (db) => {
       await db.addUser(argv.username, argv.password, argv.role);
+      const user = await db.getUserByUsername(argv.username);
+      if (user) {
+        await db.logAction(user.id, 'USER_ADD', `username=${argv.username}; role=${argv.role}`);
+      }
       console.log('User created:', argv.username);
     });
   })
@@ -65,6 +69,10 @@ yargs(hideBin(process.argv))
         console.error('Invalid credentials');
         process.exitCode = 1;
         return;
+      }
+      const user = await db.getUserByUsername(argv.username);
+      if (user) {
+        await db.logAction(user.id, 'LOGIN', 'Successful login');
       }
       console.log('Login successful');
     });
