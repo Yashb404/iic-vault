@@ -24,20 +24,33 @@
   --error: #ef4444;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
-  margin: 0;
-  padding: 0;
+/* Full-screen login overlay (hidden by default) */
+#login-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  background: var(--background);
+}
+
+/* App grid lives under #app-container, not body */
+#app-container {
   height: 100vh;
-  color: var(--text);
-  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
   display: grid;
   grid-template-areas:
     "header header"
     "sidebar main";
   grid-template-columns: 250px 1fr;
   grid-template-rows: 60px 1fr;
+}
+
+/* Remove/keep a minimal body baseline */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
 }
 
 /* Auth mode: hide app grid and show login */
@@ -51,15 +64,6 @@ body.auth #main-content {
 }
 
 /* Ensure login view overlays everything when visible */
-#login-view {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: none; /* JS toggles this */
-  background: var(--background);
-}
-
-/* Center the login form */
 #login-view {
   min-height: 100vh;
   display: flex;
