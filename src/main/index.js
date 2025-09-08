@@ -1,11 +1,12 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 const DatabaseManager = require('./services/database-manager');
+const { registerIpcHandlers } = require('./ipc-handlers');
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1000,
+    height: 800,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
@@ -13,23 +14,14 @@ const createWindow = () => {
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   mainWindow.webContents.openDevTools();
+
+  registerIpcHandlers(dbManager, mainWindow);
 };
 
-const handleFileOpen = async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openFile'],
-  });
-  if (!canceled && filePaths && filePaths.length > 0) {
-    console.log('Selected file:', filePaths[0]);
-    return filePaths[0];
-  }
-  return undefined;
-};
+const dbPath = path.join(app.getPath('userData'), 'vault.db');
+const dbManager = new DatabaseManager(dbPath);
 
 app.whenReady().then(async () => {
-  const dbPath = path.join(app.getPath('userData'), 'vault.db');
-  const dbManager = new DatabaseManager(dbPath);
-
   try {
     await dbManager.initializeDatabase();
   } catch (error) {
@@ -37,8 +29,6 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-
-  ipcMain.handle('dialog:openFile', handleFileOpen);
 
   createWindow();
 
