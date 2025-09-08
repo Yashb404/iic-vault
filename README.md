@@ -310,7 +310,7 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 For technical support or questions:
 - Create an issue in the repository
-- Contact: yashbhardwaj7890@gmail.com
+- Contact:
 
 ## Version History
 
