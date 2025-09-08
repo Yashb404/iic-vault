@@ -45,9 +45,9 @@
     "style-loader": "^3.3.4"
   },
   "dependencies": {
-
-    "bcryptjs": "^3.0.2",
+    "@aws-sdk/client-s3": "^3.884.0",
     "@supabase/supabase-js": "^2.57.2",
+    "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
