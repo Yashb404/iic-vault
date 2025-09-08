@@ -1,3 +1,5 @@
+//database manager for the client
+
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 
