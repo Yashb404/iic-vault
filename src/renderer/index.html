@@ -2,12 +2,99 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Hello World!</title>
+    <title>Secure Data Vault</title>
 
   </head>
   <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron application.</p>
+    <aside id="app-sidebar">
+      <nav aria-label="Primary">
+        <ul class="sidebar-menu">
+          <li><button class="sidebar-item active" data-view="dashboard-view"><span>Dashboard</span></button></li>
+          <li><button class="sidebar-item" data-view="vault-view"><span>My Vault</span></button></li>
+          <li><button class="sidebar-item" data-view="sync-view"><span>Sync Status</span></button></li>
+          <li><button class="sidebar-item" data-view="audit-view"><span>Audit Log</span></button></li>
+          <li><button class="sidebar-item" data-view="settings-view"><span>Settings</span></button></li>
+        </ul>
+      </nav>
+      <div class="encryption-badge">AES-256 Encryption</div>
+    </aside>
+    <main id="main-content">
+      <section id="dashboard-view" class="app-view">
+        <div class="cards">
+          <div class="card"><div class="card-title">Total Files</div><div class="card-metric" id="dash-total-files">12</div></div>
+          <div class="card storage-card">
+            <div class="card-title">Storage</div>
+            <div class="donut-wrap">
+              <div class="donut-chart" aria-label="Storage used 40%"></div>
+            </div>
+            <div class="storage-text"><strong>4.2 GB</strong> of 10 GB used</div>
+          </div>
+          <div class="card sync-card">
+            <div class="card-title">Sync Status</div>
+            <div class="sync-status-line"><span id="sync-status-indicator">Online</span></div>
+            <ul class="sync-queue">
+              <li><span id="files-to-upload">Files to upload: 0</span></li>
+              <li><span id="files-to-download">Files to download: 0</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="dashboard-actions">
+          <button class="primary" data-view-target="vault-view">Go to My Vault</button>
+          <button class="secondary" id="dash-sync-now">Sync Now</button>
+        </div>
+        <section class="activity">
+          <h3>Recent Activity</h3>
+          <ul class="activity-list">
+            <li><a href="#" class="recent-file" data-file="report.pdf">report.pdf (Added)</a></li>
+            <li><a href="#" class="recent-file" data-file="notes.txt">notes.txt (Synced)</a></li>
+            <li><a href="#" class="recent-file" data-file="project_roadmap.pdf">project_roadmap.pdf (Shared)</a></li>
+          </ul>
+        </section>
+      </section>
+      <section id="vault-view" class="app-view" style="display: none;">
+        <div class="toolbar">
+          <button id="add-file-plus" class="primary">Add File +</button>
+          <input type="text" id="vault-search" placeholder="Search files" />
+        </div>
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Last Modified</th>
+              <th>Size</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>financial_report.xlsx</td><td>2025-01-11</td><td>2.1 MB</td><td>Synced</td></tr>
+            <tr><td>client_data.csv</td><td>2025-01-09</td><td>540 KB</td><td>Modified</td></tr>
+            <tr><td>project_roadmap.pdf</td><td>2025-01-05</td><td>1.8 MB</td><td>Conflict</td></tr>
+            <tr><td>notes.txt</td><td>2025-01-03</td><td>4 KB</td><td>Synced</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section id="sync-view" class="app-view" style="display: none;">
+        <p class="placeholder">Sync status and conflicts will appear here.</p>
+      </section>
+      <section id="audit-view" class="app-view" style="display: none;">
+        <p class="placeholder">Audit logs (admins/team leads only).</p>
+      </section>
+      <section id="settings-view" class="app-view" style="display: none;">
+        <p class="placeholder">Admin settings go here.</p>
+      </section>
+    </main>
+
+    <!-- Add File Modal -->
+    <div id="add-file-modal" style="display: none;">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-file-title">
+        <h3 id="add-file-title">Add File</h3>
+        <p>File upload functionality would go here.</p>
+        <div class="modal-actions">
+          <button id="add-file-close">Close</button>
+        </div>
+      </div>
+    </div>
   </body>
   </html>
 
