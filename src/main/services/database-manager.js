@@ -122,6 +122,18 @@ class DatabaseManager {
     return this.get('SELECT * FROM files WHERE id = ?', [fileId]);
   }
 
+  getFileByEncryptedName(encryptedName) {
+    return this.get('SELECT * FROM files WHERE encryptedName = ?', [encryptedName]);
+  }
+
+  updateFileModifiedAndVersion(fileId) {
+    const now = new Date().toISOString();
+    return this.runQuery(
+      'UPDATE files SET lastModifiedUTC = ?, version = version + 1 WHERE id = ?',
+      [now, fileId]
+    );
+  }
+
   // --- Permissions ---
   grantPermission(fileId, userId, perm) {
     return this.runQuery(

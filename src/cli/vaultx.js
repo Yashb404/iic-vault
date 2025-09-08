@@ -6,10 +6,10 @@ const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 const DatabaseManager = require('../main/services/database-manager');
 const cryptoEngine = require('../main/services/crypto-engine');
+const SyncService = require('../main/services/sync-service');
 
 function getDbPath(customPath) {
   if (customPath) return customPath;
-  // mimic Electron app.getPath('userData') folder
   const base = path.join(os.homedir(), '.iic-vault');
   if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
   return path.join(base, 'vault.db');
@@ -77,53 +77,64 @@ yargs(hideBin(process.argv))
       console.log('Login successful');
     });
   })
-  .command('file upload', 'Encrypt and register a file', (y) => y
-    .option('path', { type: 'string', demandOption: true })
-    .option('owner', { type: 'string', demandOption: true, desc: 'owner userId' })
-    .option('password', { type: 'string', demandOption: true, desc: 'encryption password' })
-    .option('out', { type: 'string', desc: 'output directory' })
-    .option('db', { type: 'string' })
-  , async (argv) => {
-    await withDb(argv, async (db) => {
-      const inputPath = argv.path;
-      const originalName = path.basename(inputPath);
-      const encryptedNameToken = cryptoEngine.encryptName(argv.password, originalName);
-      const outputPath = resolveOutputPath(inputPath, encryptedNameToken, argv.out);
-      cryptoEngine.encryptFile(argv.password, inputPath, outputPath);
+  .command('file', 'File operations', (y) => {
+    return y
+      .command('upload', 'Encrypt and register a file', (yy) => yy
+        .option('path', { type: 'string', demandOption: true })
+        .option('owner', { type: 'string', demandOption: true, desc: 'owner userId' })
+        .option('password', { type: 'string', demandOption: true, desc: 'encryption password' })
+        .option('out', { type: 'string', desc: 'output directory' })
+        .option('db', { type: 'string' })
+      , async (argv) => {
+        await withDb(argv, async (db) => {
+          const inputPath = argv.path;
+          const originalName = path.basename(inputPath);
+          const encryptedNameToken = cryptoEngine.encryptName(argv.password, originalName);
+          const outputPath = resolveOutputPath(inputPath, encryptedNameToken, argv.out);
+          const absOutputPath = path.resolve(outputPath);
+          fs.mkdirSync(path.dirname(absOutputPath), { recursive: true });
+          cryptoEngine.encryptFile(argv.password, inputPath, absOutputPath);
 
-      const id = `file-${Date.now()}`;
-      await db.addFile({ id, originalName, encryptedName: path.basename(outputPath), ownerId: argv.owner });
-      await db.logAction(argv.owner, 'UPLOAD', `fileId=${id}; name=${originalName}`);
-      console.log(JSON.stringify({ fileId: id, originalName, encryptedPath: outputPath }, null, 2));
-    });
-  })
-  .command('file download', 'Decrypt a file', (y) => y
-    .option('fileId', { type: 'string', demandOption: true })
-    .option('password', { type: 'string', demandOption: true })
-    .option('dest', { type: 'string', demandOption: true })
-    .option('db', { type: 'string' })
-  , async (argv) => {
-    await withDb(argv, async (db) => {
-      const rec = await db.getFileById(argv.fileId);
-      if (!rec) {
-        console.error('File not found');
-        process.exitCode = 1;
-        return;
-      }
-      const encPath = path.isAbsolute(rec.encryptedName) ? rec.encryptedName : path.resolve(rec.encryptedName);
-      cryptoEngine.decryptFile(argv.password, encPath, argv.dest);
-      await db.logAction(rec.ownerId, 'DOWNLOAD', `fileId=${rec.id}`);
-      console.log('Saved to', argv.dest);
-    });
-  })
-  .command('file ls', 'List files', (y) => y
-    .option('user', { type: 'string', demandOption: true })
-    .option('db', { type: 'string' })
-  , async (argv) => {
-    await withDb(argv, async (db) => {
-      const list = await db.listFilesAccessibleByUser(argv.user);
-      console.log(JSON.stringify(list, null, 2));
-    });
+          const id = `file-${Date.now()}`;
+          await db.addFile({ id, originalName, encryptedName: absOutputPath, ownerId: argv.owner });
+          await db.logAction(argv.owner, 'UPLOAD', `fileId=${id}; name=${originalName}`);
+          console.log(JSON.stringify({ fileId: id, originalName, encryptedPath: absOutputPath }, null, 2));
+        });
+      })
+      .command('download', 'Decrypt a file', (yy) => yy
+        .option('fileId', { type: 'string', demandOption: true })
+        .option('password', { type: 'string', demandOption: true })
+        .option('dest', { type: 'string', demandOption: true })
+        .option('src', { type: 'string', desc: 'optional absolute path to encrypted .enc file' })
+        .option('db', { type: 'string' })
+      , async (argv) => {
+        await withDb(argv, async (db) => {
+          const rec = await db.getFileById(argv.fileId);
+          if (!rec) {
+            console.error('File not found');
+            process.exitCode = 1;
+            return;
+          }
+          const encPath = argv.src
+            ? path.resolve(argv.src)
+            : (path.isAbsolute(rec.encryptedName) ? rec.encryptedName : path.resolve(rec.encryptedName));
+          cryptoEngine.decryptFile(argv.password, encPath, argv.dest);
+          await db.logAction(rec.ownerId, 'DOWNLOAD', `fileId=${rec.id}`);
+          console.log('Saved to', argv.dest);
+        });
+      })
+      .command('ls', 'List files', (yy) => yy
+        .option('user', { type: 'string', demandOption: true })
+        .option('db', { type: 'string' })
+      , async (argv) => {
+        await withDb(argv, async (db) => {
+          const list = await db.listFilesAccessibleByUser(argv.user);
+          console.log(JSON.stringify(list, null, 2));
+        });
+      })
+      .demandCommand(1)
+      .strict()
+      .showHelpOnFail(true);
   })
   .command('perm grant', 'Grant permission on a file', (y) => y
     .option('fileId', { type: 'string', demandOption: true })
@@ -164,6 +175,37 @@ yargs(hideBin(process.argv))
     await withDb(argv, async (db) => {
       const logs = await db.getAuditLogs();
       console.log(JSON.stringify(logs, null, 2));
+    });
+  })
+  .command('sync run', 'Run on-demand sync for a file across directories', (y) => y
+    .option('fileId', { type: 'string', demandOption: true })
+    .option('dirs', { type: 'string', demandOption: true, desc: 'comma-separated list of directories' })
+    .option('db', { type: 'string' })
+  , async (argv) => {
+    const dirs = argv.dirs.split(',').map((d) => d.trim()).filter(Boolean);
+    await withDb(argv, async (db) => {
+      const sync = new SyncService(db, { directories: dirs });
+      const res = await sync.syncFileById(argv.fileId);
+      console.log(JSON.stringify(res));
+    });
+  })
+  .command('sync watch', 'Continuously watch directories and auto-sync on changes', (y) => y
+    .option('dirs', { type: 'string', demandOption: true, desc: 'comma-separated list of directories' })
+    .option('db', { type: 'string' })
+  , async (argv) => {
+    const dirs = argv.dirs.split(',').map((d) => d.trim()).filter(Boolean);
+    await withDb(argv, async (db) => {
+      const sync = new SyncService(db, { directories: dirs });
+      sync.on('synced', ({ encryptedName, res }) => {
+        console.log(`synced ${encryptedName}:`, JSON.stringify(res));
+      });
+      sync.on('error', (e) => {
+        console.error('sync error:', e.message || e);
+      });
+      console.log('Watching for changes. Press Ctrl+C to exit.');
+      sync.startWatching();
+      // Keep process alive
+      await new Promise(() => {});
     });
   })
   .demandCommand(1)
