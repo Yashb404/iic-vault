@@ -7,6 +7,9 @@ const { hideBin } = require('yargs/helpers');
 const DatabaseManager = require('../main/services/database-manager');
 const cryptoEngine = require('../main/services/crypto-engine');
 const SyncService = require('../main/services/sync-service');
+const { login: apiLogin, getSignedUploadUrl, persistMetadata, setApiBase } = require('../main/services/api-services');
+
+const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 
 function getDbPath(customPath) {
   if (customPath) return customPath;
@@ -36,13 +39,68 @@ function requireArg(argv, name) {
 
 function resolveOutputPath(inputPath, encryptedNameToken, outDir) {
   const dir = outDir || path.dirname(inputPath);
-  return path.join(dir, `${encryptedNameToken}.enc`);
+  const invalidChars = /[<>:"/\\|?*]/g; // Windows-invalid chars, also safe cross-platform
+  const safeToken = String(encryptedNameToken).replace(invalidChars, '_');
+  return path.join(dir, `${safeToken}.enc`);
+}
+
+// Remote auth token store (~/.iic-vault/token.json)
+function tokenFilePath() {
+  const base = path.join(os.homedir(), '.iic-vault');
+  if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
+  return path.join(base, 'token.json');
+}
+
+function saveToken(data) {
+  fs.writeFileSync(tokenFilePath(), JSON.stringify(data, null, 2));
+}
+
+function loadToken() {
+  try {
+    const raw = fs.readFileSync(tokenFilePath(), 'utf8');
+    const obj = JSON.parse(raw);
+    return obj && obj.token ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearToken() {
+  try { fs.unlinkSync(tokenFilePath()); } catch {}
 }
 
 // CLI definitions
 yargs(hideBin(process.argv))
   .scriptName('vaultx')
   .usage('$0 <cmd> [args]')
+  // Remote auth & API integration
+  .command('remote', 'Remote API operations', (y) => y
+    .command('login', 'Login to remote dashboard API', (yy) => yy
+      .option('username', { type: 'string', demandOption: true })
+      .option('password', { type: 'string', demandOption: true })
+      .option('api', { type: 'string', desc: 'API base URL (e.g., http://localhost:3001)' })
+    , async (argv) => {
+      if (argv.api) setApiBase(argv.api);
+      const res = await apiLogin(argv.username, argv.password); // { token, user }
+      saveToken({ token: res.token, user: res.user, api: argv.api || process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001' });
+      console.log('Remote login successful for', res.user && res.user.username ? res.user.username : argv.username);
+    })
+    .command('logout', 'Clear remote session', (yy) => yy, async () => {
+      clearToken();
+      console.log('Remote session cleared');
+    })
+    .command('status', 'Show remote session status', (yy) => yy, async () => {
+      const t = loadToken();
+      if (!t) {
+        console.log('Not logged in to remote API');
+      } else {
+        console.log(JSON.stringify({ loggedIn: true, user: t.user, api: t.api }, null, 2));
+      }
+    })
+    .demandCommand(1)
+    .strict()
+    .showHelpOnFail(true)
+  )
   .command('user add', 'Create a user', (y) => y
     .option('username', { type: 'string', demandOption: true })
     .option('password', { type: 'string', demandOption: true })
@@ -84,6 +142,8 @@ yargs(hideBin(process.argv))
         .option('owner', { type: 'string', demandOption: true, desc: 'owner userId' })
         .option('password', { type: 'string', demandOption: true, desc: 'encryption password' })
         .option('out', { type: 'string', desc: 'output directory' })
+        .option('remote', { type: 'boolean', default: false, desc: 'also upload to remote dashboard' })
+        .option('api', { type: 'string', desc: 'API base URL override for this run' })
         .option('db', { type: 'string' })
       , async (argv) => {
         await withDb(argv, async (db) => {
@@ -98,7 +158,49 @@ yargs(hideBin(process.argv))
           const id = `file-${Date.now()}`;
           await db.addFile({ id, originalName, encryptedName: absOutputPath, ownerId: argv.owner });
           await db.logAction(argv.owner, 'UPLOAD', `fileId=${id}; name=${originalName}`);
-          console.log(JSON.stringify({ fileId: id, originalName, encryptedPath: absOutputPath }, null, 2));
+
+          let remoteInfo = null;
+          if (argv.remote) {
+            const session = loadToken();
+            if (!session || !session.token) {
+              console.error('Remote upload requested but not logged in. Run: vaultx remote login --username <u> --password <p> [--api <url>]');
+              process.exitCode = 1;
+              return;
+            }
+            if (argv.api) setApiBase(argv.api);
+
+            // 1) Request signed URL
+            const { signedUrl, path: storagePath } = await getSignedUploadUrl(path.basename(absOutputPath), session.token);
+
+            // 2) PUT encrypted bytes to signed URL
+            const fileBuffer = fs.readFileSync(absOutputPath);
+            const putRes = await fetch(signedUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/octet-stream',
+              },
+              body: fileBuffer,
+            });
+            if (!putRes.ok) {
+              console.error(`Remote upload failed (${putRes.status})`);
+              process.exitCode = 1;
+              return;
+            }
+
+            // 3) Persist metadata to server
+            await persistMetadata({
+              id,
+              originalName,
+              encryptedName: absOutputPath,
+              storagePath,
+              version: 1,
+              lastModifiedUTC: new Date().toISOString(),
+            }, session.token);
+
+            remoteInfo = { storagePath };
+          }
+
+          console.log(JSON.stringify({ fileId: id, originalName, encryptedPath: absOutputPath, remote: remoteInfo }, null, 2));
         });
       })
       .command('download', 'Decrypt a file', (yy) => yy

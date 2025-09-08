@@ -86,6 +86,32 @@ vaultx file download --fileId file-123 --password "masterpass" --dest ./out/repo
 vaultx logs
 ```
 
+### Remote dashboard integration
+- Login stores a bearer token at `~/.iic-vault/token.json`.
+- You can override the API base via `--api` or by setting `SECURE_VAULT_API_BASE`.
+
+```bash
+# login to remote API (defaults to http://localhost:3001)
+vaultx remote login --username alice --password s3cr3t --api http://localhost:3001
+
+# show remote session status
+vaultx remote status
+
+# logout (clears stored token)
+vaultx remote logout
+
+# upload a file locally and also push encrypted bytes + metadata to server
+vaultx file upload \
+  --path ./docs/report.pdf \
+  --owner default-admin \
+  --password "masterpass" \
+  --out ./encrypted \
+  --remote \
+  --api http://localhost:3001
+```
+
+<!-- Direct Supabase upload via CLI was removed to avoid exposing keys. Use the server-signed URL flow (`vaultx file upload --remote`) which relies on server-held credentials. -->
+
 ## Encryption design
 - **KDF**: PBKDF2-SHA256, 32-byte key (AES-256), default 150,000 iterations, 16-byte random salt.
 - **Cipher**: AES-256-GCM, 12-byte IV, 16-byte auth tag.

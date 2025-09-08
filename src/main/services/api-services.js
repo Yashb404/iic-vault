@@ -1,6 +1,12 @@
 const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 
-const apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
+let apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
+
+function setApiBase(base) {
+  if (base && typeof base === 'string') {
+    apiBase = base;
+  }
+}
 
 async function login(username, password) {
   const res = await fetch(`${apiBase}/login`, {
@@ -42,4 +48,5 @@ module.exports = {
   login,
   getSignedUploadUrl,
   persistMetadata,
+  setApiBase,
 };
