@@ -36,7 +36,17 @@ function registerIpcHandlers(dbManager, mainWindow) {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openFile'] });
     if (canceled || filePaths.length === 0) return { success: false, message: 'File selection canceled.' };
 
-    const inputPath = filePaths[0];
+    return ipcMain.handle('file:addPath')._listener(event, { password, filePath: filePaths[0] });
+  });
+
+  // New: upload a specific file path (from drag & drop or file picker in renderer)
+  ipcMain.handle('file:addPath', async (event, { password, filePath }) => {
+    if (!currentUser) throw new Error('Authentication required.');
+    if (!filePath || typeof filePath !== 'string') {
+      return { success: false, message: 'Invalid file path.' };
+    }
+
+    const inputPath = filePath;
     const originalName = path.basename(inputPath);
     const fileId = uuidv4();
     const encryptedName = `${fileId}.enc`;

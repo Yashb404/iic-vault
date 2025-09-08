@@ -214,6 +214,29 @@
           </div>
         </div>
       </div>
+
+      <!-- Drag & Drop Upload Modal -->
+      <div id="upload-modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+          <h3 id="upload-title">Upload Encrypted File</h3>
+          <div id="upload-dropzone" class="dropzone" tabindex="0">
+            <input id="upload-file-input" type="file" style="display: none;" />
+            <div class="dz-icon">⬆</div>
+            <div class="dz-title">Drag & drop file here</div>
+            <div class="dz-subtitle">or click to browse</div>
+          </div>
+          <div class="form-field" style="margin-top: 12px;">
+            <label for="upload-password">Password</label>
+            <input id="upload-password" type="password" placeholder="Enter vault password" />
+          </div>
+          <div id="upload-error" class="error-message"></div>
+          <div class="modal-actions">
+            <button id="upload-cancel">Cancel</button>
+            <button id="upload-submit" class="primary">Encrypt & Upload</button>
+          </div>
+        </div>
+      </div>
     </div>
   </body>
   </html>

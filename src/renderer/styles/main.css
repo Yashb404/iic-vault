@@ -743,4 +743,31 @@ button:hover {
   }
 }
 
+/* Upload modal/dropzone */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px dashed var(--border-muted);
+  border-radius: 12px;
+  min-height: 160px;
+  background: var(--bg-light);
+  cursor: pointer;
+  outline: none;
+}
+.dropzone:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.dz-icon { font-size: 28px; color: var(--text-muted); }
+.dz-title { font-weight: 600; color: var(--heading-color); }
+.dz-subtitle { color: var(--text-muted); font-size: 0.9rem; }
+
+/* Generic modal container used already */
+#upload-modal { position: fixed; inset: 0; }
+#upload-modal .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); }
+#upload-modal .modal-card { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 520px; background: var(--background); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+
 
