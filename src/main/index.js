@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('node:path');
+const DatabaseManager = require('./services/database-manager');
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -24,10 +26,21 @@ const handleFileOpen = async () => {
   return undefined;
 };
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  const dbPath = path.join(app.getPath('userData'), 'vault.db');
+  const dbManager = new DatabaseManager(dbPath);
+
+  try {
+    await dbManager.initializeDatabase();
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    app.quit();
+    return;
+  }
 
   ipcMain.handle('dialog:openFile', handleFileOpen);
+
+  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -41,5 +54,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
-
