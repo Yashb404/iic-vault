@@ -120,6 +120,7 @@ npm run dev
 
 2. Start the Electron application:
 ```bash
+cd ../Client
 npm start
 ```
 
