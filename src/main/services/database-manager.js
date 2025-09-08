@@ -65,6 +65,10 @@ class DatabaseManager {
               'INSERT INTO users (id, username, passwordHash, role) VALUES (?, ?, ?, ?)',
               ['default-admin', 'admin', hashedPassword, 'admin']
             );
+            await this.runQuery(
+              'INSERT INTO audit_log (timestamp, userId, action, details) VALUES (?, ?, ?, ?)',
+              [new Date().toISOString(), 'default-admin', 'SEED', 'Created default admin user']
+            );
           }
 
           console.log('Database initialized successfully.');
