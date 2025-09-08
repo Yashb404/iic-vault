@@ -40,6 +40,25 @@ body {
   grid-template-rows: 60px 1fr;
 }
 
+/* Auth mode: hide app grid and show login */
+body.auth {
+  display: block;
+}
+
+body.auth #app-sidebar,
+body.auth #main-content {
+  display: none !important;
+}
+
+/* Ensure login view overlays everything when visible */
+#login-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none; /* JS toggles this */
+  background: var(--background);
+}
+
 /* Center the login form */
 #login-view {
   min-height: 100vh;

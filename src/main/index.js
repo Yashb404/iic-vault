@@ -3,6 +3,8 @@ const path = require('node:path');
 const DatabaseManager = require('./services/database-manager');
 const { registerIpcHandlers } = require('./ipc-handlers');
 
+try { require('dotenv').config(); } catch (_) {}
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1000,
@@ -41,44 +43,6 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle('dialog:openFile', handleFileOpen);
-
-  // IPC: User login
-  ipcMain.handle('user:login', async (_event, payload) => {
-    const { username, password } = payload || {};
-    if (!username || !password) return null;
-    const isValid = await dbManager.verifyPassword(username, password);
-    if (!isValid) return null;
-    const user = await dbManager.getUserByUsername(username);
-    return user ? { id: user.id, username: user.username, role: user.role } : null;
-  });
-
-  // IPC: Get files
-  ipcMain.handle('files:get', async () => {
-    try {
-      return await dbManager.getFiles();
-    } catch (error) {
-      console.error('files:get failed:', error);
-      return [];
-    }
-  });
-
-  // IPC: Add file(s)
-  ipcMain.handle('file:add', async () => {
-    const filePaths = await handleFileOpen();
-    if (!filePaths?.length) {
-      return { success: false, files: [], message: 'User canceled file selection.' };
-    }
-    const added = [];
-    for (let i = 0; i < filePaths.length; i++) {
-      const fullPath = filePaths[i];
-      const originalName = path.basename(fullPath);
-      const id = `file-${Date.now()}-${i}`;
-      const encryptedName = `${originalName}.enc`;
-      await dbManager.addFile({ id, originalName, encryptedName, ownerId: 'default-admin' });
-      added.push({ id, originalName, encryptedName });
-    }
-    return { success: true, files: added, message: '' };
-  });
 
   createWindow();
 

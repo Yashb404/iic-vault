@@ -6,6 +6,26 @@
 
   </head>
   <body>
+    <section id="login-view">
+      <form id="login-form" onsubmit="return false;">
+        <div class="login-brand">
+          <strong>Secure Data Vault</strong>
+        </div>
+        <h1>Sign in</h1>
+        <div class="form-field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" />
+        </div>
+        <div class="form-field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" />
+        </div>
+        <div class="form-actions">
+          <button id="login-button" class="primary">Login</button>
+        </div>
+        <div id="login-error" class="error-message"></div>
+      </form>
+    </section>
     <aside id="app-sidebar">
       <nav aria-label="Primary">
         <ul class="sidebar-menu">
