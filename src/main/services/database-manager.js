@@ -49,6 +49,15 @@ class DatabaseManager {
             )
           `);
 
+          await this.runQuery(`
+            CREATE TABLE IF NOT EXISTS permissions (
+              fileId TEXT NOT NULL,
+              userId TEXT NOT NULL,
+              perm TEXT NOT NULL CHECK(perm IN ('read','write')),
+              PRIMARY KEY (fileId, userId, perm)
+            )
+          `);
+
           const adminExists = await this.get('SELECT id FROM users WHERE username = ?', ['admin']);
           if (!adminExists) {
             const hashedPassword = await bcrypt.hash('password', SALT_ROUNDS);
@@ -103,6 +112,37 @@ class DatabaseManager {
 
   deleteFile(fileId) {
     return this.runQuery('DELETE FROM files WHERE id = ?', [fileId]);
+  }
+
+  getFileById(fileId) {
+    return this.get('SELECT * FROM files WHERE id = ?', [fileId]);
+  }
+
+  // --- Permissions ---
+  grantPermission(fileId, userId, perm) {
+    return this.runQuery(
+      'INSERT OR IGNORE INTO permissions (fileId, userId, perm) VALUES (?, ?, ?)',
+      [fileId, userId, perm]
+    );
+  }
+
+  revokePermission(fileId, userId, perm) {
+    return this.runQuery('DELETE FROM permissions WHERE fileId = ? AND userId = ? AND perm = ?', [fileId, userId, perm]);
+  }
+
+  listPermissionsForFile(fileId) {
+    return this.all('SELECT userId, perm FROM permissions WHERE fileId = ? ORDER BY userId', [fileId]);
+  }
+
+  async listFilesAccessibleByUser(userId) {
+    const sql = `
+      SELECT DISTINCT f.*
+      FROM files f
+      LEFT JOIN permissions p ON p.fileId = f.id AND p.userId = ?
+      WHERE f.ownerId = ? OR p.userId = ?
+      ORDER BY f.originalName ASC
+    `;
+    return this.all(sql, [userId, userId, userId]);
   }
 
   // --- Audit Log ---
