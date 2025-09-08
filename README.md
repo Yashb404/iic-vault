@@ -125,3 +125,14 @@ npx jest
 - File storage strategy (configurable encrypted storage directory with absolute paths in DB).
 - Role-based access checks in main process handlers.
 
+## Expected capabilities (for prototype evaluation)
+- Cross-Platform Support: runs on Windows, Linux, and macOS with a portable packaging story.
+- Secure Local & Server Storage: encrypt all documents before storage locally and on the server; unreadable outside the vault without authorization.
+- Two-Way Synchronization: changes on client/server sync bidirectionally with conflict resolution and version control.
+- Offline Functionality: full read/write when offline; pending updates sync when connectivity is restored.
+- Strong Encryption & Security: AES-256/RSA-based design; include protections against ransomware (immutable backups or version history).
+- Role-Based & Group-Based Access: admins create roles/groups and assign permissions; share documents to users or groups securely.
+- Notifications & Alerts: in-app (and/or email) alerts when documents are shared, updated, or accessed.
+- Audit & Logs: record access, modifications, sharing for accountability and traceability.
+- Ease of Deployment: portable, lightweight desktop app suitable for intranet deployment with minimal setup.
+
