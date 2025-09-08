@@ -15,6 +15,9 @@ describe('ipc-handlers upload workflow', () => {
 
     jest.resetModules();
 
+    // Mock uuid (ESM) for Jest CommonJS environment
+    jest.mock('uuid', () => ({ v4: () => '00000000-0000-0000-0000-000000000000' }));
+
     // Neutral mock (no out-of-scope captures)
     jest.mock('electron', () => ({
       ipcMain: { handle: jest.fn() },

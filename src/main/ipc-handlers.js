@@ -6,40 +6,23 @@ const fsp = require('node:fs/promises');
 const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 
 const { encryptFile } = require('./services/crypto-engine');
+const api = require('./services/api-services');
 
 let currentUser = null;
 
 function registerIpcHandlers(dbManager, mainWindow) {
   ipcMain.handle('user:login', async (event, { username, password }) => {
-    const user = await dbManager.getUserByUsername(username);
-    if (!user) return null;
-
-    const isValid = await dbManager.verifyPassword(username, password);
-    if (isValid) {
-      // Retrieve JWT from API server to use for authenticated requests
-      try {
-        const apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
-        const res = await fetch(`${apiBase}/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
-        });
-        if (!res.ok) throw new Error(`Login to API failed (${res.status})`);
-        const { token, user: serverUser } = await res.json();
-
-        currentUser = { ...user, token, role: serverUser?.role || user.role, id: serverUser?.id || user.id };
-        console.log(`User logged in: ${currentUser.username}, Role: ${currentUser.role}`);
-        await dbManager.logAction(currentUser.id, 'USER_LOGIN');
-        return { id: currentUser.id, username: currentUser.username, role: currentUser.role, token: currentUser.token };
-      } catch (err) {
-        console.error('Failed to obtain JWT from API server:', err);
-        await dbManager.logAction('system', 'LOGIN_FAILED', `JWT fetch failed for user: ${username}`);
-        return null;
-      }
+    try {
+      const { token, user } = await api.login(username, password);
+      currentUser = { ...user, token };
+      console.log(`User logged in: ${currentUser.username}, Role: ${currentUser.role}`);
+      await dbManager.logAction(currentUser.id, 'USER_LOGIN');
+      return { id: currentUser.id, username: currentUser.username, role: currentUser.role, token: currentUser.token };
+    } catch (err) {
+      console.error('Server login failed:', err);
+      await dbManager.logAction('system', 'LOGIN_FAILED', `Server login failed for user: ${username}`);
+      return null;
     }
-
-    await dbManager.logAction('system', 'LOGIN_FAILED', `Attempt for user: ${username}`);
-    return null;
   });
 
   ipcMain.handle('files:get', () => {
@@ -63,24 +46,14 @@ function registerIpcHandlers(dbManager, mainWindow) {
     const tempEncryptedPath = path.join(tmpDir, encryptedName);
 
     try {
-      // 1) Encrypt to temp (placeholder: copy)
-      await encryptFile(inputPath, tempEncryptedPath, password);
+      // 1) Encrypt to temp
+      await encryptFile(password, inputPath, tempEncryptedPath);
 
       // 2) Read encrypted file to memory buffer
       const encryptedBuffer = await fsp.readFile(tempEncryptedPath);
 
       // 3) Request signed upload URL from your server
-      const apiBase = process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001';
-      const signedRes = await fetch(`${apiBase}/files/upload-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser.token}`,
-        },
-        body: JSON.stringify({ fileName: encryptedName }),
-      });
-      if (!signedRes.ok) throw new Error(`Failed to get signed URL (${signedRes.status})`);
-      const { signedUrl, path: remotePath } = await signedRes.json();
+      const { signedUrl, path: remotePath } = await api.getSignedUploadUrl(encryptedName, currentUser.token);
 
       // 4) PUT the encrypted buffer to Supabase signed URL
       const putRes = await fetch(signedUrl, {
@@ -100,22 +73,14 @@ function registerIpcHandlers(dbManager, mainWindow) {
       await dbManager.logAction(currentUser.id, 'FILE_ENCRYPT', `Uploaded: ${originalName} -> ${remotePath}`);
 
       // 6) Persist central metadata on API server
-      const metaRes = await fetch(`${apiBase}/files/metadata`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser.token}`,
-        },
-        body: JSON.stringify({
-          id: fileId,
-          originalName,
-          encryptedName,
-          storagePath: remotePath,
-          version: 1,
-          lastModifiedUTC: new Date().toISOString(),
-        }),
-      });
-      if (!metaRes.ok) throw new Error(`Metadata persist failed (${metaRes.status})`);
+      await api.persistMetadata({
+        id: fileId,
+        originalName,
+        encryptedName,
+        storagePath: remotePath,
+        version: 1,
+        lastModifiedUTC: new Date().toISOString(),
+      }, currentUser.token);
 
       try { await fsp.unlink(tempEncryptedPath); } catch (_) {}
       return { success: true, files: await dbManager.getFiles() };
