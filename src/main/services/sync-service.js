@@ -1,107 +1,126 @@
 const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
+const { app } = require('electron');
+const api = require('./api-services');
+
+const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 
 class SyncService extends EventEmitter {
-  constructor(databaseManager, options = {}) {
+  constructor(dbManager) {
     super();
-    this.db = databaseManager;
-    this.directories = options.directories || [];
-    this.watchers = [];
-    this.debounceMs = options.debounceMs || 300;
-    this._pending = new Map(); // map encryptedName -> timeout
+    this.dbManager = dbManager;
+    this.isSyncing = false;
+    this.currentUser = null;
   }
 
-  setDirectories(directories) {
-    this.directories = Array.from(new Set(directories));
+  setCurrentUser(user) { this.currentUser = user; }
+
+  async runSync() {
+    if (this.isSyncing || !this.currentUser) {
+      console.log('Sync skipped (already in progress or no user).');
+      return;
+    }
+    console.log('🚀 Starting sync process...');
+    this.isSyncing = true;
+    try {
+      const remoteFiles = await api.syncFiles(this.currentUser.token);
+      const localFiles = await this.dbManager.getFiles();
+
+      const remoteFileMap = new Map(remoteFiles.map(f => [f.id, f]));
+      const localFileMap = new Map(localFiles.map(f => [f.id, f]));
+
+      const filesToDownload = this._getFilesToDownload(remoteFiles, localFileMap);
+      const filesToUpload = this._getFilesToUpload(localFiles, remoteFileMap);
+
+      console.log(`Sync Tasks: ${filesToDownload.length} to download, ${filesToUpload.length} to upload.`);
+
+      for (const fileMeta of filesToDownload) {
+        await this._downloadFile(fileMeta);
+      }
+      for (const fileMeta of filesToUpload) {
+        await this._uploadFile(fileMeta);
+      }
+    } catch (error) {
+      console.error('Sync process failed:', error);
+    } finally {
+      this.isSyncing = false;
+      console.log('✅ Sync process finished.');
+    }
   }
 
-  // Determine source of truth by latest mtime among existing copies
-  findLatestCopy(encryptedName) {
-    let latest = null;
-    for (const dir of this.directories) {
-      const candidate = path.join(dir, encryptedName);
-      if (fs.existsSync(candidate)) {
-        const stat = fs.statSync(candidate);
-        if (!latest || stat.mtimeMs > latest.mtimeMs) {
-          latest = { fullPath: candidate, mtimeMs: stat.mtimeMs };
-        }
+  _getFilesToDownload(remoteFiles, localFileMap) {
+    const toDownload = [];
+    for (const remoteFile of remoteFiles) {
+      const localFile = localFileMap.get(remoteFile.id);
+      if (!localFile || new Date(remoteFile.lastModifiedUTC) > new Date(localFile.lastModifiedUTC)) {
+        toDownload.push(remoteFile);
       }
     }
-    return latest;
+    return toDownload;
   }
 
-  copyFile(src, dest) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-  }
-
-  // Mirror latest copy to all directories; update DB version and audit log
-  async syncFileById(fileId) {
-    const rec = await this.db.getFileById(fileId);
-    if (!rec) throw new Error('File not found');
-    const latest = this.findLatestCopy(rec.encryptedName);
-    if (!latest) return { updated: 0 };
-
-    let updated = 0;
-    for (const dir of this.directories) {
-      const target = path.join(dir, rec.encryptedName);
-      if (!fs.existsSync(target)) {
-        this.copyFile(latest.fullPath, target);
-        updated++;
-      } else {
-        const stat = fs.statSync(target);
-        if (stat.mtimeMs < latest.mtimeMs) {
-          this.copyFile(latest.fullPath, target);
-          updated++;
-        }
+  _getFilesToUpload(localFiles, remoteFileMap) {
+    const toUpload = [];
+    for (const localFile of localFiles) {
+      const remoteFile = remoteFileMap.get(localFile.id);
+      if (!remoteFile || new Date(localFile.lastModifiedUTC) > new Date(remoteFile.lastModifiedUTC)) {
+        toUpload.push(localFile);
       }
     }
-
-    if (updated > 0) {
-      await this.db.updateFileModifiedAndVersion(fileId);
-      await this.db.logAction(rec.ownerId, 'SYNC', `fileId=${fileId}; copies=${updated}`);
-    }
-    return { updated };
+    return toUpload;
   }
 
-  async syncByEncryptedName(encryptedName) {
-    const rec = await this.db.getFileByEncryptedName(encryptedName);
-    if (!rec) return { updated: 0 };
-    return this.syncFileById(rec.id);
-  }
+  async _downloadFile(remoteFileMeta) {
+    console.log(`Downloading: ${remoteFileMeta.originalName}`);
+    try {
+      // Expect server to accept storagePath (userId/encryptedName)
+      const { signedUrl } = await api.getDownloadUrl(remoteFileMeta.storagePath, this.currentUser.token);
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
 
-  // Start watching directories and auto-sync on changes
-  startWatching() {
-    this.stopWatching();
-    for (const dir of this.directories) {
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const watcher = fs.watch(dir, { persistent: true }, (eventType, filename) => {
-        if (!filename) return;
-        // Only react to our encrypted files
-        const encryptedName = filename.toString();
-        // Debounce per encryptedName
-        clearTimeout(this._pending.get(encryptedName));
-        const to = setTimeout(() => {
-          this.syncByEncryptedName(encryptedName).then((res) => {
-            this.emit('synced', { encryptedName, res });
-          }).catch((err) => {
-            this.emit('error', err);
-          });
-        }, this.debounceMs);
-        this._pending.set(encryptedName, to);
-      });
-      this.watchers.push(watcher);
+      const encryptedBuffer = Buffer.from(await response.arrayBuffer());
+      const vaultDir = path.join(app.getPath('userData'), 'vault');
+      const encryptedPath = path.join(vaultDir, remoteFileMeta.encryptedName);
+
+      await fsp.mkdir(vaultDir, { recursive: true });
+      await fsp.writeFile(encryptedPath, encryptedBuffer);
+
+      // Update local DB with remote metadata
+      await this.dbManager.addOrUpdateFile(remoteFileMeta);
+      console.log(`✅ Successfully downloaded ${remoteFileMeta.originalName}`);
+    } catch (error) {
+      console.error(`❌ Failed to download ${remoteFileMeta.originalName}:`, error);
     }
   }
 
-  stopWatching() {
-    for (const w of this.watchers) {
-      try { w.close(); } catch (_) {}
+  async _uploadFile(localFileMeta) {
+    console.log(`Uploading: ${localFileMeta.originalName}`);
+    try {
+      const vaultDir = path.join(app.getPath('userData'), 'vault');
+      const encryptedPath = path.join(vaultDir, localFileMeta.encryptedName);
+      const fileBuffer = await fsp.readFile(encryptedPath);
+
+      const { signedUrl, path: storagePath } = await api.getSignedUploadUrl(localFileMeta.encryptedName, this.currentUser.token);
+
+      const putRes = await fetch(signedUrl, { method: 'PUT', body: fileBuffer });
+      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
+
+      const newVersion = (localFileMeta.version || 1) + 1;
+      const updatedMeta = {
+        ...localFileMeta,
+        version: newVersion,
+        lastModifiedUTC: new Date().toISOString(),
+        storagePath,
+      };
+
+      await api.persistMetadata(updatedMeta, this.currentUser.token);
+      await this.dbManager.addOrUpdateFile(updatedMeta);
+      console.log(`✅ Successfully uploaded ${localFileMeta.originalName}`);
+    } catch (error) {
+      console.error(`❌ Failed to upload ${localFileMeta.originalName}:`, error);
     }
-    this.watchers = [];
-    for (const [, to] of this._pending) clearTimeout(to);
-    this._pending.clear();
   }
 }
 
