@@ -1,65 +1,84 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+
+jest.mock('../src/main/services/api-services', () => ({
+  syncFiles: jest.fn(),
+  getDownloadUrl: jest.fn(),
+  getSignedUploadUrl: jest.fn(),
+  persistMetadata: jest.fn(),
+}));
+
+// Neutral mock - no closures
+jest.mock('electron', () => ({ app: { getPath: jest.fn() } }));
+
+const api = require('../src/main/services/api-services');
 const DatabaseManager = require('../src/main/services/database-manager');
 const SyncService = require('../src/main/services/sync-service');
 
-describe('SyncService', () => {
-  let db;
-  let tmpA, tmpB;
-  let sync;
-  let fileId;
+const fetchShim = async (url, opts = {}) => ({ ok: true, status: 200, arrayBuffer: async () => Buffer.from('encbytes'), json: async () => ({}) });
 
-  beforeAll(async () => {
+describe('SyncService runSync', () => {
+  let db;
+  let sync;
+  let vaultUserDataDir;
+
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    global.fetch = fetchShim;
+    // Fresh in-memory DB per test
     db = new DatabaseManager(':memory:');
     await new Promise((r) => db.db.on('open', r));
     await db.initializeDatabase();
+
+    // Fresh vault userData dir per test
+    vaultUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-'));
+    require('electron').app.getPath.mockReturnValue(vaultUserDataDir);
+
+    sync = new SyncService(db);
+    sync.setCurrentUser({ id: 'u1', token: 't-1' });
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await db.close();
+    try { fs.rmSync(vaultUserDataDir, { recursive: true, force: true }); } catch (_) {}
   });
 
-  beforeEach(async () => {
-    tmpA = fs.mkdtempSync(path.join(os.tmpdir(), 'syncA-'));
-    tmpB = fs.mkdtempSync(path.join(os.tmpdir(), 'syncB-'));
-    sync = new SyncService(db, { directories: [tmpA, tmpB] });
-    fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+  test('downloads when remote is newer', async () => {
+    const remote = [{ id: 'id1', originalName: 'a.txt', encryptedName: 'e.enc', ownerId: 'u1', version: 2, storagePath: 'u1/e.enc', lastModifiedUTC: '2025-01-02T00:00:00.000Z', createdAt: '2025-01-01T00:00:00.000Z' }];
+    await db.addOrUpdateFile({ id: 'id1', originalName: 'a.txt', encryptedName: 'e.enc', ownerId: 'u1', version: 1, lastModifiedUTC: '2025-01-01T00:00:00.000Z', createdAt: '2025-01-01T00:00:00.000Z' });
 
-    await db.addFile({
-      id: fileId,
-      originalName: 'report.pdf',
-      encryptedName: 'token.enc',
-      ownerId: 'default-admin',
-    });
+    api.syncFiles.mockResolvedValue(remote);
+    api.getDownloadUrl.mockResolvedValue({ signedUrl: 'https://signed/download' });
+
+    await sync.runSync();
+
+    const rec = await db.getFileByEncryptedName('e.enc');
+    expect(rec.version).toBe(2);
+    const encPath = path.join(vaultUserDataDir, 'vault', 'e.enc');
+    expect(fs.existsSync(encPath)).toBe(true);
   });
 
-  test('one-way: copy from A to B when A is newer', async () => {
-    const aFile = path.join(tmpA, 'token.enc');
-    const bFile = path.join(tmpB, 'token.enc');
-    fs.writeFileSync(aFile, Buffer.from('A newer content'));
-    if (fs.existsSync(bFile)) fs.unlinkSync(bFile);
+  test('uploads when local is newer', async () => {
+    const local = { id: 'id2', originalName: 'b.txt', encryptedName: 'b.enc', ownerId: 'u1', version: 3, lastModifiedUTC: '2025-01-03T00:00:00.000Z', createdAt: '2025-01-01T00:00:00.000Z' };
+    await db.addOrUpdateFile(local);
 
-    const res = await sync.syncFileById(fileId);
-    expect(res.updated).toBeGreaterThanOrEqual(1);
-    expect(fs.existsSync(bFile)).toBe(true);
-    const bBytes = fs.readFileSync(bFile).toString('utf8');
-    expect(bBytes).toBe('A newer content');
-  });
+    const remote = [{ id: 'id2', originalName: 'b.txt', encryptedName: 'b.enc', ownerId: 'u1', version: 2, storagePath: 'u1/b.enc', lastModifiedUTC: '2025-01-02T00:00:00.000Z', createdAt: '2025-01-01T00:00:00.000Z' }];
 
-  test('two-way: whichever is newer wins and overwrites older', async () => {
-    const aFile = path.join(tmpA, 'token.enc');
-    const bFile = path.join(tmpB, 'token.enc');
-    fs.writeFileSync(aFile, Buffer.from('old A'));
-    // Ensure newer mtime on B
-    fs.writeFileSync(bFile, Buffer.from('NEW B'));
+    api.syncFiles.mockResolvedValue(remote);
+    api.getSignedUploadUrl.mockResolvedValue({ signedUrl: 'https://signed/upload', path: 'u1/b.enc' });
+    api.persistMetadata.mockResolvedValue({ ok: true });
 
-    const res = await sync.syncFileById(fileId);
-    expect(res.updated).toBeGreaterThanOrEqual(1);
-    const aBytes = fs.readFileSync(aFile).toString('utf8');
-    const bBytes = fs.readFileSync(bFile).toString('utf8');
-    expect(aBytes).toBe('NEW B');
-    expect(bBytes).toBe('NEW B');
+    // create fake encrypted file in vault to upload (respect subdir)
+    const vaultDir = path.join(vaultUserDataDir, 'vault');
+    fs.mkdirSync(vaultDir, { recursive: true });
+    const encPath = path.join(vaultDir, 'b.enc');
+    fs.writeFileSync(encPath, Buffer.from('encbytes'));
+
+    await sync.runSync();
+
+    const rec = await db.getFileByEncryptedName('b.enc');
+    expect(rec.version).toBe(4);
   });
 });
 
