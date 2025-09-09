@@ -44,7 +44,7 @@ async function persistMetadata(metadata, token) {
   return res.json(); // { ok: true }
 }
 
-// Placeholder: list user's files for sync when endpoint is ready
+// List user's files for sync
 async function syncFiles(token) {
   const res = await fetch(`${apiBase}/files`, {
     headers: { 'Authorization': `Bearer ${token}` },
@@ -53,7 +53,7 @@ async function syncFiles(token) {
   return res.json();
 }
 
-// Placeholder: request signed download URL by storagePath (recommended)
+// Request signed download URL by storagePath
 async function getDownloadUrl(storagePath, token) {
   const res = await fetch(`${apiBase}/files/download-url`, {
     method: 'POST',
