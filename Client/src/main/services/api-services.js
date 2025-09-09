@@ -44,9 +44,34 @@ async function persistMetadata(metadata, token) {
   return res.json(); // { ok: true }
 }
 
+// Placeholder: list user's files for sync when endpoint is ready
+async function syncFiles(token) {
+  const res = await fetch(`${apiBase}/files`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Sync list failed (${res.status})`);
+  return res.json();
+}
+
+// Placeholder: request signed download URL by storagePath (recommended)
+async function getDownloadUrl(storagePath, token) {
+  const res = await fetch(`${apiBase}/files/download-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ storagePath }),
+  });
+  if (!res.ok) throw new Error(`Download URL failed (${res.status})`);
+  return res.json(); // { signedUrl }
+}
+
 module.exports = {
   login,
   getSignedUploadUrl,
   persistMetadata,
   setApiBase,
+  syncFiles,
+  getDownloadUrl,
 };

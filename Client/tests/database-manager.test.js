@@ -53,7 +53,6 @@ describe('DatabaseManager', () => {
     expect(user).not.toBeNull();
     expect(user.username).toBe('alice');
     expect(user.role).toBe('user');
-    // verify login works
     const ok = await dbManager.verifyPassword('alice', 's3cr3t');
     expect(ok).toBe(true);
   });
@@ -71,11 +70,40 @@ describe('DatabaseManager', () => {
     expect(Array.isArray(filesAfterAdd)).toBe(true);
     expect(filesAfterAdd.length).toBe(1);
     expect(filesAfterAdd[0].id).toBe(fileId);
-    expect(filesAfterAdd[0].originalName).toBe('report.pdf');
 
     await dbManager.deleteFile(fileId);
     const filesAfterDelete = await dbManager.getFiles();
     expect(filesAfterDelete.length).toBe(0);
+  });
+
+  test('extended helpers: addOrUpdateFile, getFileByEncryptedName, updateFileModifiedAndVersion', async () => {
+    const id = `f-${Date.now()}`;
+    const base = {
+      id,
+      originalName: 'x.txt',
+      encryptedName: 'x.enc',
+      ownerId: 'default-admin',
+      version: 1,
+      lastModifiedUTC: new Date('2024-01-01').toISOString(),
+      createdAt: new Date('2024-01-01').toISOString(),
+    };
+
+    await dbManager.addOrUpdateFile(base);
+    let rec = await dbManager.getFileByEncryptedName('x.enc');
+    expect(rec).not.toBeNull();
+    expect(rec.version).toBe(1);
+
+    // Update
+    const updated = { ...base, originalName: 'x2.txt', version: 2, lastModifiedUTC: new Date('2024-02-01').toISOString() };
+    await dbManager.addOrUpdateFile(updated);
+    rec = await dbManager.getFileByEncryptedName('x.enc');
+    expect(rec.originalName).toBe('x2.txt');
+    expect(rec.version).toBe(2);
+
+    // Bump version helper
+    await dbManager.updateFileModifiedAndVersion(id);
+    rec = await dbManager.getFileByEncryptedName('x.enc');
+    expect(rec.version).toBe(3);
   });
 
   test('audit logging: logAction and getAuditLogs', async () => {

@@ -29,7 +29,8 @@ class DatabaseManager {
               lastModifiedUTC TEXT NOT NULL,
               version INTEGER NOT NULL DEFAULT 1,
               ownerId TEXT NOT NULL
-            )
+            );
+          ALTER TABLE files ADD COLUMN storagePath TEXT;
           `);
 
           await this.runQuery(`
@@ -58,6 +59,7 @@ class DatabaseManager {
               perm TEXT NOT NULL CHECK(perm IN ('read','write')),
               PRIMARY KEY (fileId, userId, perm)
             )
+              
           `);
 
           const adminExists = await this.get('SELECT id FROM users WHERE username = ?', ['admin']);
@@ -66,10 +68,6 @@ class DatabaseManager {
             await this.runQuery(
               'INSERT INTO users (id, username, passwordHash, role) VALUES (?, ?, ?, ?)',
               ['default-admin', 'admin', hashedPassword, 'admin']
-            );
-            await this.runQuery(
-              'INSERT INTO audit_log (timestamp, userId, action, details) VALUES (?, ?, ?, ?)',
-              [new Date().toISOString(), 'default-admin', 'SEED', 'Created default admin user']
             );
           }
 
@@ -112,6 +110,25 @@ class DatabaseManager {
     );
   }
 
+  // New: upsert-like helper used by sync-service
+  async addOrUpdateFile(meta) {
+    const existing = await this.get('SELECT id FROM files WHERE id = ?', [meta.id]);
+    const createdAt = meta.createdAt || new Date().toISOString();
+    const lastModifiedUTC = meta.lastModifiedUTC || createdAt;
+    const version = typeof meta.version === 'number' ? meta.version : 1;
+    if (existing) {
+      await this.runQuery(
+        'UPDATE files SET originalName=?, encryptedName=?, ownerId=?, version=?, lastModifiedUTC=? WHERE id=?',
+        [meta.originalName, meta.encryptedName, meta.ownerId, version, lastModifiedUTC, meta.id]
+      );
+    } else {
+      await this.runQuery(
+        'INSERT INTO files (id, originalName, encryptedName, createdAt, lastModifiedUTC, version, ownerId) VALUES (?,?,?,?,?,?,?)',
+        [meta.id, meta.originalName, meta.encryptedName, createdAt, lastModifiedUTC, version, meta.ownerId]
+      );
+    }
+  }
+
   getFiles() {
     return this.all('SELECT * FROM files ORDER BY originalName ASC');
   }
@@ -124,16 +141,15 @@ class DatabaseManager {
     return this.get('SELECT * FROM files WHERE id = ?', [fileId]);
   }
 
+  // New: lookup by encrypted name (sync-service helper)
   getFileByEncryptedName(encryptedName) {
     return this.get('SELECT * FROM files WHERE encryptedName = ?', [encryptedName]);
   }
 
-  updateFileModifiedAndVersion(fileId) {
+  // New: bump version and modified timestamp
+  async updateFileModifiedAndVersion(fileId) {
     const now = new Date().toISOString();
-    return this.runQuery(
-      'UPDATE files SET lastModifiedUTC = ?, version = version + 1 WHERE id = ?',
-      [now, fileId]
-    );
+    await this.runQuery('UPDATE files SET lastModifiedUTC = ?, version = COALESCE(version,1) + 1 WHERE id = ?', [now, fileId]);
   }
 
   // --- Permissions ---
