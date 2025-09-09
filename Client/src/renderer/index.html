@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Secure Data Vault</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   </head>
   <body>
     <!-- Auth screen (hidden by default) -->
@@ -29,38 +29,38 @@
       </div>
     </section>
     <!-- Login View (shown first; app hidden until login succeeds) -->
-    <section id="login-view" class="login-layout">
-      <div class="login-card">
-        <div class="login-title">Secure Data Vault</div>
-        <div class="login-subtitle">Sign in to access your encrypted files</div>
-        <form id="login-form" class="login-form" onsubmit="return false;">
-          <div class="form-group">
-            <label for="username" class="form-label">Username</label>
-            <input id="username" type="text" class="form-input" autocomplete="username" placeholder="Enter your username" />
-          </div>
-          <div class="form-group">
-            <label for="password" class="form-label">Password</label>
-            <input id="password" type="password" class="form-input" autocomplete="current-password" placeholder="Enter your password" />
-          </div>
-          <button id="login-button" class="btn btn-primary btn-lg" style="width: 100%;">Sign In</button>
-          <div id="login-error" class="error-message" style="display: none;"></div>
-        </form>
-      </div>
+    <section id="login-view">
+      <form id="login-form" onsubmit="return false;">
+        <div class="login-brand">
+          <strong>Secure Data Vault</strong>
+        </div>
+        <h1>Sign in</h1>
+        <div class="form-field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" />
+        </div>
+        <div class="form-field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" />
+        </div>
+        <div class="form-actions">
+          <button id="login-button" class="primary">Login</button>
+        </div>
+        <div id="login-error" class="error-message"></div>
+      </form>
     </section>
 
     <!-- App Container (hidden until login) -->
-    <div id="app-container" class="app-layout" style="display: none;">
-      <header class="app-header">
+    <div id="app-container" style="display: none;">
+      <header id="app-header">
         <div class="header-left">
           <h1 class="app-title">Security Dashboard</h1>
-          <span class="badge badge-neutral">Administrator • IT Security</span>
+          <span class="role-badge">Administrator • IT Security</span>
         </div>
         <div class="header-right">
-          <button id="header-sync" class="status-indicator status-online" aria-haspopup="true" aria-expanded="false">
-            <span>●</span> Synced
-          </button>
-          <button id="notify-btn" class="btn btn-ghost" aria-haspopup="true" aria-expanded="false">🔔</button>
-          <button id="avatar-btn" class="btn btn-ghost" style="width: 40px; height: 40px; border-radius: 50%; padding: 0;" aria-haspopup="true" aria-expanded="false">A</button>
+          <button id="header-sync" class="sync-indicator" aria-haspopup="true" aria-expanded="false">Synced</button>
+          <button id="notify-btn" class="header-btn" aria-haspopup="true" aria-expanded="false">Notifications</button>
+          <button id="avatar-btn" class="avatar" aria-haspopup="true" aria-expanded="false">A</button>
         </div>
         <div id="sync-popover" class="popover" style="display: none;">
           <div class="popover-header">
@@ -95,174 +95,119 @@
           </div>
         </div>
       </header>
-      <aside class="app-sidebar">
+      <aside id="app-sidebar">
         <nav aria-label="Primary">
-          <ul class="nav-menu">
-            <li class="nav-item">
-              <button class="nav-link active" data-view="dashboard-view">
-                <span>📊</span> Dashboard
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-view="vault-view">
-                <span>🗄️</span> My Vault
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-view="sync-view">
-                <span>🔄</span> Sync Status
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-view="audit-view">
-                <span>📋</span> Audit Log
-              </button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" data-view="settings-view">
-                <span>⚙️</span> Settings
-              </button>
-            </li>
+          <ul class="sidebar-menu">
+            <li><button class="sidebar-item active" data-view="dashboard-view"><span>Dashboard</span></button></li>
+            <li><button class="sidebar-item" data-view="vault-view"><span>My Vault</span></button></li>
+            <li><button class="sidebar-item" data-view="sync-view"><span>Sync Status</span></button></li>
+            <li><button class="sidebar-item" data-view="audit-view"><span>Audit Log</span></button></li>
+            <li><button class="sidebar-item" data-view="settings-view"><span>Settings</span></button></li>
           </ul>
         </nav>
-        <div class="badge badge-neutral" style="margin-top: auto; text-align: center; padding: var(--space-2);">
-          🔒 AES-256 Encryption
-        </div>
+        <div class="encryption-badge">AES-256 Encryption</div>
       </aside>
-      <main class="app-main">
+      <main id="main-content">
         <section id="dashboard-view" class="app-view">
-          <div class="dashboard-grid">
-            <div class="stat-card">
-              <div class="stat-label">Total Documents</div>
-              <div class="stat-value" id="dash-total-files">1,247</div>
-              <div class="stat-change positive">
-                <span>↗</span> +12% from last month
-              </div>
+          <div class="cards cards-quad">
+            <div class="card">
+              <div class="card-title">Total Documents</div>
+              <div class="card-metric" id="dash-total-files">1,247</div>
+              <div class="stat-subtext">+12% from last month</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Encrypted Files</div>
-              <div class="stat-value">1,247</div>
-              <div class="stat-change positive">
-                <span>🔒</span> 100% secured
+            <div class="card storage-card">
+              <div class="card-title">Encrypted Files</div>
+              <div class="donut-wrap">
+                <div class="donut-chart" aria-label="Storage used 40%"></div>
               </div>
+              <div class="storage-text"><strong>1,247</strong> 100% secured</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Active Users</div>
-              <div class="stat-value">89</div>
-              <div class="stat-change">
-                <span>👥</span> Across 12 departments
-              </div>
+            <div class="card">
+              <div class="card-title">Active Users</div>
+              <div class="card-metric">89</div>
+              <div class="stat-subtext">Across 12 departments</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Security Score</div>
-              <div class="stat-value">98%</div>
-              <div class="stat-change positive">
-                <span>🛡️</span> Excellent security
-              </div>
+            <div class="card">
+              <div class="card-title">Security Score</div>
+              <div class="card-metric">98%</div>
+              <div class="stat-subtext">Excellent security</div>
             </div>
           </div>
-          <div class="toolbar">
-            <button class="btn btn-primary" data-view-target="vault-view">Go to My Vault</button>
-            <button class="btn btn-secondary" id="dash-sync-now">Sync Now</button>
-            <button class="btn btn-primary" id="dash-upload-file">Upload File</button>
+          <div class="dashboard-actions">
+            <button class="primary" data-view-target="vault-view">Go to My Vault</button>
+            <button class="secondary" id="dash-sync-now">Sync Now</button>
+            <button class="primary" id="dash-upload-file">Upload File</button>
           </div>
-          <div class="activity-feed">
-            <div class="card-header">
-              <h3>Recent Activity</h3>
-            </div>
-            <div class="card-body" style="padding: 0;">
-              <div class="activity-item">
-                <div class="activity-icon">📄</div>
-                <div class="activity-content">
-                  <div class="activity-title">Document uploaded</div>
-                  <div class="activity-description">
-                    <a href="#" class="recent-file" data-file="Budget_2025.xlsx">Budget_2025.xlsx</a> by Sarah Chen
-                  </div>
-                </div>
-                <div class="activity-time">5 minutes ago</div>
-              </div>
-              <div class="activity-item">
-                <div class="activity-icon">🔐</div>
-                <div class="activity-content">
-                  <div class="activity-title">Access granted</div>
-                  <div class="activity-description">
-                    <a href="#" class="recent-file" data-file="HR_Policy.pdf">HR_Policy.pdf</a> by Mike Johnson
-                  </div>
-                </div>
-                <div class="activity-time">12 minutes ago</div>
-              </div>
-            </div>
-          </div>
+          <section class="activity">
+            <h3>Recent Activity</h3>
+            <ul class="activity-list activity-rows">
+              <li class="activity-row"><div class="activity-main"><strong>Document uploaded</strong><div class="activity-meta"><a href="#" class="recent-file" data-file="Budget_2025.xlsx">Budget_2025.xlsx</a> by Sarah Chen</div></div><time>5 minutes ago</time></li>
+              <li class="activity-row"><div class="activity-main"><strong>Access granted</strong><div class="activity-meta"><a href="#" class="recent-file" data-file="HR_Policy.pdf">HR_Policy.pdf</a> by Mike Johnson</div></div><time>12 minutes ago</time></li>
+            </ul>
+          </section>
         </section>
         <section id="vault-view" class="app-view" style="display: none;">
-          <div class="toolbar">
-            <div class="toolbar-search">
-              <input type="text" id="doc-search" class="form-input" placeholder="Search documents..." />
-            </div>
-            <div class="toolbar-actions">
-              <button id="filter-btn" class="btn btn-secondary">Filter</button>
-              <button class="btn btn-primary">Upload</button>
-            </div>
+          <div class="vault-toolbar">
+            <input type="text" id="doc-search" class="search-input" placeholder="Search documents..." />
+            <button id="filter-btn" class="secondary">Filter</button>
           </div>
-          <div class="card">
-            <div class="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Size</th>
-                  <th>Modified</th>
-                  <th>Shared</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div class="name-col">
-                      <a href="#" class="recent-file">Financial_Report_Q4_2024.pdf</a>
-                      <div class="meta-line"><span class="badge badge-neutral">Encrypted</span></div>
-                    </div>
-                  </td>
-                  <td>PDF</td>
-                  <td>2.4 MB</td>
-                  <td>2 hours ago</td>
-                  <td><span class="badge badge-success">3 users</span></td>
-                  <td><span class="badge badge-success">synced</span></td>
-                  <td><button class="btn btn-ghost btn-sm" aria-label="More">⋮</button></td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="name-col">
-                      <a href="#" class="recent-file">Employee_Handbook_v3.docx</a>
-                      <div class="meta-line"><span class="badge badge-neutral">Encrypted</span></div>
-                    </div>
-                  </td>
-                  <td>DOCX</td>
-                  <td>1.8 MB</td>
-                  <td>1 day ago</td>
-                  <td><span class="badge badge-success">12 users</span></td>
-                  <td><span class="badge badge-success">synced</span></td>
-                  <td><button class="btn btn-ghost btn-sm" aria-label="More">⋮</button></td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="name-col">
-                      <a href="#" class="recent-file">Security_Audit_2024.xlsx</a>
-                      <div class="meta-line"><span class="badge badge-neutral">Encrypted</span></div>
-                    </div>
-                  </td>
-                  <td>XLSX</td>
-                  <td>856 KB</td>
-                  <td>3 days ago</td>
-                  <td><span class="badge badge-success">2 users</span></td>
-                  <td><span class="badge badge-warning">offline</span></td>
-                  <td><button class="btn btn-ghost btn-sm" aria-label="More">⋮</button></td>
-                </tr>
-              </tbody>
-            </div>
-          </div>
+          <table class="file-table doc-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Shared</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="name-col">
+                    <a href="#" class="recent-file">Financial_Report_Q4_2024.pdf</a>
+                    <div class="meta-line"><span class="badge muted">Encrypted</span></div>
+                  </div>
+                </td>
+                <td>PDF</td>
+                <td>2.4 MB</td>
+                <td>2 hours ago</td>
+                <td><span class="chip success">3 users</span></td>
+                <td><span class="badge success">synced</span></td>
+                <td><button class="kebab" aria-label="More">⋮</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="name-col">
+                    <a href="#" class="recent-file">Employee_Handbook_v3.docx</a>
+                    <div class="meta-line"><span class="badge muted">Encrypted</span></div>
+                  </div>
+                </td>
+                <td>DOCX</td>
+                <td>1.8 MB</td>
+                <td>1 day ago</td>
+                <td><span class="chip success">12 users</span></td>
+                <td><span class="badge success">synced</span></td>
+                <td><button class="kebab" aria-label="More">⋮</button></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="name-col">
+                    <a href="#" class="recent-file">Security_Audit_2024.xlsx</a>
+                    <div class="meta-line"><span class="badge muted">Encrypted</span></div>
+                  </div>
+                </td>
+                <td>XLSX</td>
+                <td>856 KB</td>
+                <td>3 days ago</td>
+                <td><span class="chip success">2 users</span></td>
+                <td><span class="badge">offline</span></td>
+                <td><button class="kebab" aria-label="More">⋮</button></td>
+              </tr>
+            </tbody>
+          </table>
         </section>
         <section id="sync-view" class="app-view" style="display: none;">
           <p class="placeholder">Sync status and conflicts will appear here.</p>
@@ -293,28 +238,24 @@
       </div>
 
       <!-- Drag & Drop Upload Modal -->
-      <div id="upload-modal" class="modal" style="display: none;">
+      <div id="upload-modal" style="display: none;">
         <div class="modal-backdrop"></div>
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="upload-title">
-          <div class="modal-header">
-            <h3 id="upload-title" class="modal-title">Upload Encrypted File</h3>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+          <h3 id="upload-title">Upload Encrypted File</h3>
+          <div id="upload-dropzone" class="dropzone" tabindex="0">
+            <input id="upload-file-input" type="file" style="display: none;" />
+            <div class="dz-icon">⬆</div>
+            <div class="dz-title">Drag & drop file here</div>
+            <div class="dz-subtitle">or click to browse</div>
           </div>
-          <div class="modal-body">
-            <div id="upload-dropzone" class="dropzone" tabindex="0">
-              <input id="upload-file-input" type="file" style="display: none;" />
-              <div class="dropzone-icon">📁</div>
-              <div class="dropzone-title">Drag & drop file here</div>
-              <div class="dropzone-subtitle">or click to browse</div>
-            </div>
-            <div class="form-group" style="margin-top: var(--space-6);">
-              <label for="upload-password" class="form-label">Encryption Password</label>
-              <input id="upload-password" type="password" class="form-input" placeholder="Enter vault password" />
-            </div>
-            <div id="upload-error" class="error-message" style="display: none;"></div>
+          <div class="form-field" style="margin-top: 12px;">
+            <label for="upload-password">Password</label>
+            <input id="upload-password" type="password" placeholder="Enter vault password" />
           </div>
-          <div class="modal-footer">
-            <button id="upload-cancel" class="btn btn-secondary">Cancel</button>
-            <button id="upload-submit" class="btn btn-primary">Encrypt & Upload</button>
+          <div id="upload-error" class="error-message"></div>
+          <div class="modal-actions">
+            <button id="upload-cancel">Cancel</button>
+            <button id="upload-submit" class="primary">Encrypt & Upload</button>
           </div>
         </div>
       </div>

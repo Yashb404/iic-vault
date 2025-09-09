@@ -13,55 +13,21 @@ let currentUser = null;
 function registerIpcHandlers(dbManager, mainWindow) {
   ipcMain.handle('user:login', async (event, { username, password }) => {
     try {
-      // First try local database login
-      const user = await dbManager.getUserByUsername(username);
-      if (!user) {
-        throw new Error('User not found');
-      }
-      
-      const isValidPassword = await dbManager.verifyPassword(username, password);
-      if (!isValidPassword) {
-        throw new Error('Invalid password');
-      }
-      
-      currentUser = user;
-      console.log(`User logged in locally: ${currentUser.username}, Role: ${currentUser.role}`);
-      await dbManager.logAction(currentUser.id, 'USER_LOGIN', 'Local login successful');
-      
-      return { 
-        id: currentUser.id, 
-        username: currentUser.username, 
-        role: currentUser.role, 
-        token: 'local-token' // Local token for local database
-      };
+      const { token, user } = await api.login(username, password);
+      currentUser = { ...user, token };
+      console.log(`User logged in: ${currentUser.username}, Role: ${currentUser.role}`);
+      await dbManager.logAction(currentUser.id, 'USER_LOGIN');
+      return { id: currentUser.id, username: currentUser.username, role: currentUser.role, token: currentUser.token };
     } catch (err) {
-      console.error('Local login failed:', err);
+      console.error('Server login failed:', err);
+      await dbManager.logAction('system', 'LOGIN_FAILED', `Server login failed for user: ${username}`);
       return null;
     }
   });
 
-  ipcMain.handle('files:get', async () => {
+  ipcMain.handle('files:get', () => {
     if (!currentUser) return [];
-    return await dbManager.getFiles();
-  });
-
-  // Handle file dialog requests from renderer
-  ipcMain.handle('dialog:openFile', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [
-        { name: 'All Files', extensions: ['*'] },
-        { name: 'Documents', extensions: ['pdf', 'doc', 'docx', 'txt', 'rtf'] },
-        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'] },
-        { name: 'Spreadsheets', extensions: ['xls', 'xlsx', 'csv'] },
-      ]
-    });
-    
-    if (canceled || !filePaths || filePaths.length === 0) {
-      return null;
-    }
-    
-    return filePaths[0]; // Return the first selected file path
+    return dbManager.getFiles();
   });
 
   ipcMain.handle('file:add', async (event, { password }) => {
@@ -82,37 +48,54 @@ function registerIpcHandlers(dbManager, mainWindow) {
 
     const inputPath = filePath;
     const originalName = path.basename(inputPath);
-    const fileId = `file-${Date.now()}`;
+    const fileId = uuidv4();
     const encryptedName = `${fileId}.enc`;
 
-    // Create encrypted files directory in user data
-    const encryptedDir = path.join(app.getPath('userData'), 'encrypted');
-    if (!fs.existsSync(encryptedDir)) fs.mkdirSync(encryptedDir, { recursive: true });
-    const encryptedPath = path.join(encryptedDir, encryptedName);
+    const tmpDir = path.join(app.getPath('userData'), 'tmp');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const tempEncryptedPath = path.join(tmpDir, encryptedName);
 
     try {
-      // 1) Encrypt file to local encrypted directory
-      await encryptFile(password, inputPath, encryptedPath);
+      // 1) Encrypt to temp
+      await encryptFile(password, inputPath, tempEncryptedPath);
 
-      // 2) Save local metadata
+      // 2) Read encrypted file to memory buffer
+      const encryptedBuffer = await fsp.readFile(tempEncryptedPath);
+
+      // 3) Request signed upload URL from your server
+      const { signedUrl, path: remotePath } = await api.getSignedUploadUrl(encryptedName, currentUser.token);
+
+      // 4) PUT the encrypted buffer to Supabase signed URL
+      const putRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: encryptedBuffer,
+      });
+      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
+
+      // 5) Save local metadata
       await dbManager.addFile({
         id: fileId,
         originalName,
-        encryptedName: encryptedPath, // Store full path for local access
+        encryptedName,
         ownerId: currentUser.id,
       });
-      
-      await dbManager.logAction(currentUser.id, 'FILE_ENCRYPT', `Uploaded: ${originalName} -> ${encryptedName}`);
-      
-      return { 
-        success: true, 
-        fileId,
+      await dbManager.logAction(currentUser.id, 'FILE_ENCRYPT', `Uploaded: ${originalName} -> ${remotePath}`);
+
+      // 6) Persist central metadata on API server
+      await api.persistMetadata({
+        id: fileId,
         originalName,
-        encryptedPath,
-        files: await dbManager.getFiles() 
-      };
+        encryptedName,
+        storagePath: remotePath,
+        version: 1,
+        lastModifiedUTC: new Date().toISOString(),
+      }, currentUser.token);
+
+      try { await fsp.unlink(tempEncryptedPath); } catch (_) {}
+      return { success: true, files: await dbManager.getFiles() };
     } catch (error) {
-      console.error('Failed to add/encrypt file:', error);
+      console.error('Failed to add/encrypt/upload file:', error);
       return { success: false, message: error.message };
     }
   });

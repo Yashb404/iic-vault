@@ -10,8 +10,4 @@ module.exports = {
   module: {
     rules,
   },
-  // Allow external resources
-  externals: {
-    'google-fonts': 'google-fonts'
-  }
 };
