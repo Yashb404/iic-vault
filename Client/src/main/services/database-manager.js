@@ -100,7 +100,7 @@ class DatabaseManager {
     return this.get('SELECT * FROM users WHERE username = ?', [username]);
   }
 
-  // --- File Management ---
+  // File Management
   addFile(fileData) {
     const { id, originalName, encryptedName, ownerId } = fileData;
     const now = new Date().toISOString();
@@ -192,7 +192,7 @@ class DatabaseManager {
     return this.all('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT 100');
   }
 
-  // --- DB Helper Methods (Promisified) ---
+  // DB Helper Methods (Promisified) 
   runQuery(sql, params = []) {
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function (err) {

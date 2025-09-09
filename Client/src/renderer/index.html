@@ -22,7 +22,7 @@
             <button id="auth-submit" class="auth-submit" type="submit" disabled>Sign in</button>
           </form>
           <div class="auth-links">
-            <a href="#" class="auth-link">Create account</a>
+            <a href="#" id="show-register" class="auth-link">Create account</a>
             <a href="#" class="auth-link">Forgot your password?</a>
           </div>
         </div>
@@ -47,6 +47,42 @@
           <button id="login-button" class="primary">Login</button>
         </div>
         <div id="login-error" class="error-message"></div>
+        <div class="auth-links">
+          <a href="#" id="show-register-link" class="auth-link">Create account</a>
+          <a href="#" class="auth-link">Forgot your password?</a>
+        </div>
+      </form>
+    </section>
+
+    <!-- Registration View (hidden by default) -->
+    <section id="register-view" style="display: none;">
+      <form id="register-form" onsubmit="return false;">
+        <div class="login-brand">
+          <strong>Secure Data Vault</strong>
+        </div>
+        <h1>Create Account</h1>
+        <div class="form-field">
+          <label for="reg-username">Username</label>
+          <input id="reg-username" type="text" autocomplete="username" />
+        </div>
+        <div class="form-field">
+          <label for="reg-password">Password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" />
+        </div>
+        <div class="form-field">
+          <label for="reg-role">Role</label>
+          <select id="reg-role">
+            <option value="user">User</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button id="register-button" class="primary">Create Account</button>
+        </div>
+        <div id="register-error" class="error-message"></div>
+        <div class="auth-links">
+          <a href="#" id="show-login-link" class="auth-link">Already have an account? Sign in</a>
+        </div>
       </form>
     </section>
 
