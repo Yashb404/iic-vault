@@ -6,8 +6,8 @@ console.log('👋 This message is being logged by "renderer.js", included via we
 const $ = (sel) => document.querySelector(sel);
 
 // View switchers (existing)
-const sidebarItems = document.querySelectorAll('#app-sidebar .sidebar-item');
-const appViews = document.querySelectorAll('#main-content .app-view');
+const sidebarItems = document.querySelectorAll('.app-sidebar .nav-link');
+const appViews = document.querySelectorAll('.app-main .app-view');
 const goToVaultBtn = document.querySelector('[data-view-target="vault-view"]');
 
 function showView(viewId) {
@@ -70,13 +70,29 @@ function showApp(visible) {
 async function loadFiles() {
   try {
     const files = await window.ipcRenderer.invoke('files:get');
-    const tbody = document.querySelector('.file-table tbody');
+    const tbody = document.querySelector('.table tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
+    
     (files || []).forEach((f) => {
       const tr = document.createElement('tr');
-      const d = f.lastModifiedUTC ? new Date(f.lastModifiedUTC).toISOString().slice(0,10) : '';
-      tr.innerHTML = `<td>${f.originalName || ''}</td><td>${f.type || ''}</td><td>${f.size || ''}</td><td>${d}</td><td></td><td>Synced</td><td></td>`;
+      const fileExtension = f.originalName ? f.originalName.split('.').pop().toUpperCase() : '';
+      const modifiedDate = f.lastModifiedUTC ? new Date(f.lastModifiedUTC).toLocaleDateString() : 'Unknown';
+      
+      tr.innerHTML = `
+        <td>
+          <div class="name-col">
+            <a href="#" class="recent-file">${f.originalName || 'Unknown'}</a>
+            <div class="meta-line"><span class="badge badge-neutral">Encrypted</span></div>
+          </div>
+        </td>
+        <td>${fileExtension}</td>
+        <td>Unknown</td>
+        <td>${modifiedDate}</td>
+        <td><span class="badge badge-success">1 user</span></td>
+        <td><span class="badge badge-success">synced</span></td>
+        <td><button class="btn btn-ghost btn-sm" aria-label="More">⋮</button></td>
+      `;
       tbody.appendChild(tr);
     });
   } catch (e) {
@@ -99,7 +115,9 @@ if (loginBtn) {
     loginBtn.classList.add('loading');
     try {
       const result = await window.ipcRenderer.invoke('user:login', { username, password });
-      if (!result || !result.token) throw new Error('Login failed.');
+      if (!result || !result.id) throw new Error('Login failed.');
+      
+      console.log('Login successful:', result);
       showApp(true);
       await loadFiles();
     } catch (e) {
@@ -152,13 +170,30 @@ if (uploadDropzone && uploadFileInput) {
   uploadFileInput.addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    // Electron file input may not expose path by default; fallback to IPC file dialog if needed
-    selectedPath = file.path;
-    if (!selectedPath) {
-      // Ask main to open dialog and choose a file
-      window.ipcRenderer.invoke('dialog:openFile').then((paths) => {
-        if (Array.isArray(paths) && paths.length) selectedPath = paths[0];
+    
+    // Try to get the file path, fallback to using the file input
+    selectedPath = file.path || file.name;
+    
+    // If we don't have a proper path, use the file dialog instead
+    if (!file.path) {
+      window.ipcRenderer.invoke('dialog:openFile').then((filePath) => {
+        if (filePath) {
+          selectedPath = filePath;
+          // Update the dropzone to show the selected file
+          const dropzone = document.getElementById('upload-dropzone');
+          if (dropzone) {
+            dropzone.querySelector('.dropzone-title').textContent = `Selected: ${file.name}`;
+            dropzone.querySelector('.dropzone-subtitle').textContent = 'Click to change file';
+          }
+        }
       });
+    } else {
+      // Update the dropzone to show the selected file
+      const dropzone = document.getElementById('upload-dropzone');
+      if (dropzone) {
+        dropzone.querySelector('.dropzone-title').textContent = `Selected: ${file.name}`;
+        dropzone.querySelector('.dropzone-subtitle').textContent = 'Click to change file';
+      }
     }
   });
 }
@@ -178,7 +213,15 @@ if (uploadDropzone) {
   uploadDropzone.addEventListener('drop', (e) => {
     const files = e.dataTransfer?.files;
     if (files && files.length) {
-      selectedPath = files[0].path;
+      const file = files[0];
+      selectedPath = file.path || file.name;
+      
+      // Update the dropzone to show the dropped file
+      const dropzone = document.getElementById('upload-dropzone');
+      if (dropzone) {
+        dropzone.querySelector('.dropzone-title').textContent = `Selected: ${file.name}`;
+        dropzone.querySelector('.dropzone-subtitle').textContent = 'Click to change file';
+      }
     }
   });
 }
@@ -199,8 +242,18 @@ if (uploadSubmit) {
     try {
       const res = await window.ipcRenderer.invoke('file:addPath', { password: pwd, filePath: selectedPath });
       if (!res?.success) throw new Error(res?.message || 'Upload failed.');
+      
+      // Show success message
+      console.log('File uploaded successfully:', res);
       closeUploadModal();
       await loadFiles();
+      
+      // Reset the dropzone
+      const dropzone = document.getElementById('upload-dropzone');
+      if (dropzone) {
+        dropzone.querySelector('.dropzone-title').textContent = 'Drag & drop file here';
+        dropzone.querySelector('.dropzone-subtitle').textContent = 'or click to browse';
+      }
     } catch (e) {
       console.error('upload failed:', e);
       if (uploadError) { uploadError.style.display = 'block'; uploadError.textContent = e.message || 'Upload failed.'; }
