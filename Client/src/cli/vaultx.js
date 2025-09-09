@@ -39,12 +39,11 @@ function requireArg(argv, name) {
 
 function resolveOutputPath(inputPath, encryptedNameToken, outDir) {
   const dir = outDir || path.dirname(inputPath);
-  const invalidChars = /[<>:"/\\|?*]/g; // Windows-invalid chars, also safe cross-platform
+  const invalidChars = /[<>:"/\\|?*]/g;
   const safeToken = String(encryptedNameToken).replace(invalidChars, '_');
   return path.join(dir, `${safeToken}.enc`);
 }
 
-// Remote auth token store (~/.iic-vault/token.json)
 function tokenFilePath() {
   const base = path.join(os.homedir(), '.iic-vault');
   if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
@@ -69,11 +68,9 @@ function clearToken() {
   try { fs.unlinkSync(tokenFilePath()); } catch {}
 }
 
-// CLI definitions
 yargs(hideBin(process.argv))
   .scriptName('vaultx')
   .usage('$0 <cmd> [args]')
-  // Remote auth & API integration
   .command('remote', 'Remote API operations', (y) => y
     .command('login', 'Login to remote dashboard API', (yy) => yy
       .option('username', { type: 'string', demandOption: true })
@@ -81,7 +78,7 @@ yargs(hideBin(process.argv))
       .option('api', { type: 'string', desc: 'API base URL (e.g., http://localhost:3001)' })
     , async (argv) => {
       if (argv.api) setApiBase(argv.api);
-      const res = await apiLogin(argv.username, argv.password); // { token, user }
+      const res = await apiLogin(argv.username, argv.password);
       saveToken({ token: res.token, user: res.user, api: argv.api || process.env.SECURE_VAULT_API_BASE || 'http://localhost:3001' });
       console.log('Remote login successful for', res.user && res.user.username ? res.user.username : argv.username);
     })
@@ -139,11 +136,11 @@ yargs(hideBin(process.argv))
     return y
       .command('upload', 'Encrypt and register a file', (yy) => yy
         .option('path', { type: 'string', demandOption: true })
-        .option('owner', { type: 'string', demandOption: true, desc: 'owner userId' })
-        .option('password', { type: 'string', demandOption: true, desc: 'encryption password' })
-        .option('out', { type: 'string', desc: 'output directory' })
-        .option('remote', { type: 'boolean', default: false, desc: 'also upload to remote dashboard' })
-        .option('api', { type: 'string', desc: 'API base URL override for this run' })
+        .option('owner', { type: 'string', demandOption: true })
+        .option('password', { type: 'string', demandOption: true })
+        .option('out', { type: 'string' })
+        .option('remote', { type: 'boolean', default: false })
+        .option('api', { type: 'string' })
         .option('db', { type: 'string' })
       , async (argv) => {
         await withDb(argv, async (db) => {
@@ -169,16 +166,11 @@ yargs(hideBin(process.argv))
             }
             if (argv.api) setApiBase(argv.api);
 
-            // 1) Request signed URL
             const { signedUrl, path: storagePath } = await getSignedUploadUrl(path.basename(absOutputPath), session.token);
-
-            // 2) PUT encrypted bytes to signed URL
             const fileBuffer = fs.readFileSync(absOutputPath);
             const putRes = await fetch(signedUrl, {
               method: 'PUT',
-              headers: {
-                'Content-Type': 'application/octet-stream',
-              },
+              headers: { 'Content-Type': 'application/octet-stream' },
               body: fileBuffer,
             });
             if (!putRes.ok) {
@@ -187,7 +179,6 @@ yargs(hideBin(process.argv))
               return;
             }
 
-            // 3) Persist metadata to server
             await persistMetadata({
               id,
               originalName,
@@ -207,7 +198,7 @@ yargs(hideBin(process.argv))
         .option('fileId', { type: 'string', demandOption: true })
         .option('password', { type: 'string', demandOption: true })
         .option('dest', { type: 'string', demandOption: true })
-        .option('src', { type: 'string', desc: 'optional absolute path to encrypted .enc file' })
+        .option('src', { type: 'string' })
         .option('db', { type: 'string' })
       , async (argv) => {
         await withDb(argv, async (db) => {
@@ -281,7 +272,7 @@ yargs(hideBin(process.argv))
   })
   .command('sync run', 'Run on-demand sync for a file across directories', (y) => y
     .option('fileId', { type: 'string', demandOption: true })
-    .option('dirs', { type: 'string', demandOption: true, desc: 'comma-separated list of directories' })
+    .option('dirs', { type: 'string', demandOption: true })
     .option('db', { type: 'string' })
   , async (argv) => {
     const dirs = argv.dirs.split(',').map((d) => d.trim()).filter(Boolean);
@@ -292,7 +283,7 @@ yargs(hideBin(process.argv))
     });
   })
   .command('sync watch', 'Continuously watch directories and auto-sync on changes', (y) => y
-    .option('dirs', { type: 'string', demandOption: true, desc: 'comma-separated list of directories' })
+    .option('dirs', { type: 'string', demandOption: true })
     .option('db', { type: 'string' })
   , async (argv) => {
     const dirs = argv.dirs.split(',').map((d) => d.trim()).filter(Boolean);
@@ -306,7 +297,6 @@ yargs(hideBin(process.argv))
       });
       console.log('Watching for changes. Press Ctrl+C to exit.');
       sync.startWatching();
-      // Keep process alive
       await new Promise(() => {});
     });
   })
@@ -314,5 +304,3 @@ yargs(hideBin(process.argv))
   .help()
   .strict()
   .parse();
-
-
