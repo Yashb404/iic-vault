@@ -7,28 +7,27 @@ try { require('dotenv').config(); } catch (_) {}
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 800,
+    width: 1200,
+    height: 900,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   });
+
+  // Note: Using system fonts to avoid CSP issues
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   mainWindow.webContents.openDevTools();
 
+  // Register IPC handlers after window is created
   registerIpcHandlers(dbManager, mainWindow);
 };
 
-const handleFileOpen = async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openFile', 'multiSelections'],
-  });
-  if (!canceled && filePaths?.length > 0) {
-    return filePaths;
-  }
-  return undefined;
-};
+// File dialog is now handled in ipc-handlers.js
 
 const dbPath = path.join(app.getPath('userData'), 'vault.db');
 const dbManager = new DatabaseManager(dbPath);
@@ -42,7 +41,7 @@ app.whenReady().then(async () => {
     return;
   }
 
-  ipcMain.handle('dialog:openFile', handleFileOpen);
+  // IPC handlers are registered in registerIpcHandlers function
 
   createWindow();
 
