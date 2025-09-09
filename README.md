@@ -180,7 +180,106 @@ tests/                     # Test files
 ├── sync-service.test.js
 └── synchronization.test.js
 ```
+# CLI Usage: `vaultx`
 
+The `vaultx` CLI provides full access to the Secure Data Vault system from the command line. All features available in the Electron app are also available via CLI.
+
+## Installation
+
+You can run the CLI directly from the `src/cli/vaultx.js` file, or symlink it as `vaultx` in your PATH.
+
+## Commands
+
+### Remote API
+
+```
+vaultx remote login --username <user> --password <pass> [--api <url>]
+vaultx remote logout
+vaultx remote status
+```
+- `login`: Authenticate with the remote dashboard API and save a session token.
+- `logout`: Clear the saved remote session.
+- `status`: Show current remote session info.
+
+### User Management
+
+```
+vaultx user add --username <user> --password <pass> [--role admin|user] [--db <dbfile>]
+vaultx login --username <user> --password <pass> [--db <dbfile>]
+```
+- `user add`: Create a new user in the local database.
+- `login`: Verify credentials for a user.
+
+### File Operations
+
+```
+vaultx file upload --path <file> --owner <userId> --password <pw> [--out <dir>] [--remote] [--api <url>] [--db <dbfile>]
+vaultx file download --fileId <id> --password <pw> --dest <output> [--src <encfile>] [--db <dbfile>]
+vaultx file ls --user <userId> [--db <dbfile>]
+```
+- `upload`: Encrypt and register a file. Optionally upload to remote dashboard.
+- `download`: Decrypt a file by fileId and password, saving to a destination.
+- `ls`: List files accessible by a user.
+
+### Permissions
+
+```
+vaultx perm grant --fileId <id> --userId <id> --perm read|write [--db <dbfile>]
+vaultx perm revoke --fileId <id> --userId <id> --perm read|write [--db <dbfile>]
+vaultx perm ls --fileId <id> [--db <dbfile>]
+```
+- `grant`: Grant read/write permission to a user for a file.
+- `revoke`: Revoke permission from a user for a file.
+- `ls`: List permissions for a file.
+
+### Audit Logs
+
+```
+vaultx logs [--db <dbfile>]
+```
+- Show the latest audit logs.
+
+### Sync
+
+```
+vaultx sync run --fileId <id> --dirs <dir1,dir2,...> [--db <dbfile>]
+vaultx sync watch --dirs <dir1,dir2,...> [--db <dbfile>]
+```
+- `run`: Run on-demand sync for a file across directories.
+- `watch`: Continuously watch directories and auto-sync on changes.
+
+## Options
+
+- `--db <dbfile>`: Use a custom database file (default: `~/.iic-vault/vault.db`).
+- `--api <url>`: Override the remote API base URL for remote operations.
+
+## Examples
+
+```
+# Add a user
+vaultx user add --username alice --password secret --role user
+
+# Login
+vaultx login --username alice --password secret
+
+# Upload a file (local only)
+vaultx file upload --path ./report.pdf --owner alice --password secret
+
+# Upload a file and sync to remote
+vaultx file upload --path ./report.pdf --owner alice --password secret --remote --api http://localhost:3001
+
+# Download a file
+vaultx file download --fileId file-123 --password secret --dest ./output.pdf
+
+# Grant read permission
+vaultx perm grant --fileId file-123 --userId bob --perm read
+
+# Show audit logs
+vaultx logs
+
+# Run sync
+vaultx sync run --fileId file-123 --dirs ./vault1,./vault2
+```
 ## Core Features
 
 ### File Encryption
